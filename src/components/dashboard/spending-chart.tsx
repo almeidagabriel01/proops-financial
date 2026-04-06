@@ -10,13 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/utils/format';
-
-interface WeekData {
-  week: string;
-  receitas: number;
-  despesas: number;
-}
+import { formatCurrency, type WeekData } from '@/lib/utils/format';
 
 interface SpendingChartProps {
   data: WeekData[];
@@ -83,23 +77,3 @@ export function SpendingChart({ data }: SpendingChartProps) {
   );
 }
 
-export function groupByWeek(
-  transactions: Array<{ date: string; amount: number; type: 'credit' | 'debit' }>,
-): WeekData[] {
-  const weeks: Record<string, WeekData> = {};
-
-  for (const tx of transactions) {
-    const day = parseInt(tx.date.split('-')[2], 10);
-    const weekNum = Math.ceil(day / 7);
-    const key = `Sem ${weekNum}`;
-    if (!weeks[key]) weeks[key] = { week: key, receitas: 0, despesas: 0 };
-
-    if (tx.type === 'credit') {
-      weeks[key].receitas += tx.amount;
-    } else {
-      weeks[key].despesas += Math.abs(tx.amount);
-    }
-  }
-
-  return Object.values(weeks).sort((a, b) => a.week.localeCompare(b.week));
-}

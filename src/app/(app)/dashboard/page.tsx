@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { FileUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { SummaryCards } from '@/components/dashboard/summary-cards';
-import { SpendingChart, groupByWeek } from '@/components/dashboard/spending-chart';
-import { getMonthBounds } from '@/lib/utils/format';
+import { SpendingChart } from '@/components/dashboard/spending-chart';
+import { getMonthBounds, groupByWeek } from '@/lib/utils/format';
 import { buttonVariants } from '@/components/ui/button';
 
 export const metadata: Metadata = { title: 'Dashboard' };
