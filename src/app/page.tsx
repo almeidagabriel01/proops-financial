@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { buttonVariants } from '@/components/ui/button';
 
 export default function Home() {
   return (
@@ -19,12 +18,15 @@ export default function Home() {
         </p>
 
         <div className="flex w-full flex-col gap-3">
-          <Link href="/signup" className={buttonVariants({ size: 'lg', className: 'w-full' })}>
+          <Link
+            href="/signup"
+            className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
+          >
             Começar agora
           </Link>
           <Link
             href="/login"
-            className={buttonVariants({ variant: 'outline', size: 'lg', className: 'w-full' })}
+            className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
           >
             Já tenho conta
           </Link>
