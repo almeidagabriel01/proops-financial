@@ -93,6 +93,13 @@ supabase gen types typescript --local > src/lib/supabase/types.ts
 
 ---
 
+## Regras de Git
+
+**NUNCA adicionar `Co-Authored-By` ou qualquer trailer de autoria de IA nos commits.**
+Commits têm um único autor: Gabriel Almeida. Não incluir referência a Claude, Anthropic ou qualquer ferramenta de IA nas mensagens de commit.
+
+---
+
 ## Stories Ativas
 
 Ver `docs/stories/` — numeradas por Epic (1.x Foundation, 2.x IA, 3.x Premium, 4.x Polish)
