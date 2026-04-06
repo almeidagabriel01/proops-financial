@@ -32,8 +32,11 @@ Thumbs.db
 .idea/
 *.swp
 
+# AIOX Framework — tooling local, não faz parte do produto
+.aiox-core/
+.agents/
+
 # AIOX Local (AIOX)
-.aiox-core/local/
 .claude/settings.local.json
 .aiox/install-log.txt
 
