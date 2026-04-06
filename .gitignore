@@ -36,3 +36,16 @@ Thumbs.db
 .aiox-core/local/
 .claude/settings.local.json
 .aiox/install-log.txt
+
+# Claude Code — session memory & agent handoffs (local only)
+.claude/projects/
+.aiox/handoffs/
+
+# Next.js generated files
+next-env.d.ts
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Supabase temp files
+supabase/.temp/
