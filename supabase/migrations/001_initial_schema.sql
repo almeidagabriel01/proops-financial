@@ -289,3 +289,6 @@ create policy "Users can upload own imports"
 create policy "Users can read own imports"
   on storage.objects for select
   using (bucket_id = 'imports' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Realtime: replica identity full enables payload diff on UPDATE events
+alter table public.imports replica identity full;

@@ -40,6 +40,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       bank_accounts: {
         Row: {
@@ -66,6 +67,15 @@ export type Database = {
           last_import_at?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'bank_accounts_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       imports: {
         Row: {
@@ -107,6 +117,22 @@ export type Database = {
           error_message?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'imports_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'imports_bank_account_id_fkey';
+            columns: ['bank_account_id'];
+            isOneToOne: false;
+            referencedRelation: 'bank_accounts';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       transactions: {
         Row: {
@@ -157,6 +183,29 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'transactions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'transactions_bank_account_id_fkey';
+            columns: ['bank_account_id'];
+            isOneToOne: false;
+            referencedRelation: 'bank_accounts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'transactions_import_id_fkey';
+            columns: ['import_id'];
+            isOneToOne: false;
+            referencedRelation: 'imports';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       category_dictionary: {
         Row: {
@@ -186,6 +235,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'category_dictionary_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       category_cache: {
         Row: {
@@ -215,6 +273,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       chat_messages: {
         Row: {
@@ -238,6 +297,15 @@ export type Database = {
           content?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'chat_messages_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       subscriptions: {
         Row: {
@@ -276,6 +344,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'subscriptions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
