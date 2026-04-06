@@ -14,6 +14,9 @@ export function parseOFX(content: string): ParsedTransaction[] {
   const blockRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
   let match: RegExpExecArray | null;
 
+  // Track FITID occurrences to handle duplicates within the same file
+  const fitIdCount = new Map<string, number>();
+
   while ((match = blockRegex.exec(normalized)) !== null) {
     const block = match[1];
 
@@ -41,8 +44,14 @@ export function parseOFX(content: string): ParsedTransaction[] {
       type = amount >= 0 ? 'credit' : 'debit';
     }
 
+    // Deduplicate FITIDs within the same file (some banks reuse the same FITID
+    // for distinct transactions, e.g. Nubank rotativo charges)
+    const count = fitIdCount.get(fitId) ?? 0;
+    fitIdCount.set(fitId, count + 1);
+    const externalId = count === 0 ? fitId : `${fitId}_${count + 1}`;
+
     transactions.push({
-      external_id: fitId,
+      external_id: externalId,
       date,
       description: name,
       amount,

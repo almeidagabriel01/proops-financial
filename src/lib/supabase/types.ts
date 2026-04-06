@@ -10,10 +10,11 @@ export type Database = {
         Row: {
           id: string;
           display_name: string | null;
-          plan: 'free' | 'premium';
+          plan: 'basic' | 'pro';
           trial_ends_at: string | null;
           asaas_customer_id: string | null;
-          ai_queries_today: number;
+          audio_enabled: boolean;
+          ai_queries_this_month: number;
           ai_queries_reset_at: string;
           created_at: string;
           updated_at: string;
@@ -21,10 +22,11 @@ export type Database = {
         Insert: {
           id: string;
           display_name?: string | null;
-          plan?: 'free' | 'premium';
+          plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           asaas_customer_id?: string | null;
-          ai_queries_today?: number;
+          audio_enabled?: boolean;
+          ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
           created_at?: string;
           updated_at?: string;
@@ -32,10 +34,11 @@ export type Database = {
         Update: {
           id?: string;
           display_name?: string | null;
-          plan?: 'free' | 'premium';
+          plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           asaas_customer_id?: string | null;
-          ai_queries_today?: number;
+          audio_enabled?: boolean;
+          ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
           created_at?: string;
           updated_at?: string;

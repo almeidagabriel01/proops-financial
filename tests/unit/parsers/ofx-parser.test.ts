@@ -64,4 +64,80 @@ describe('parseOFX', () => {
     const ids = transactions.map((t) => t.external_id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it('handles duplicate FITIDs within the same file by appending suffix', () => {
+    const content = `
+<OFX>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<STMTRS>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-0.62
+<FITID>69b3331b-3c74-4413-b3c0-45bbdeccacc7
+<NAME>IOF de rotativo
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-15.74
+<FITID>69b3331b-3c74-4413-b3c0-45bbdeccacc7
+<NAME>Juros de rotativo
+</STMTTRN>
+</BANKTRANLIST>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>`;
+    const transactions = parseOFX(content);
+    expect(transactions).toHaveLength(2);
+    expect(transactions[0].external_id).toBe('69b3331b-3c74-4413-b3c0-45bbdeccacc7');
+    expect(transactions[1].external_id).toBe('69b3331b-3c74-4413-b3c0-45bbdeccacc7_2');
+    expect(transactions[0].description).toBe('IOF de rotativo');
+    expect(transactions[1].description).toBe('Juros de rotativo');
+    const ids = transactions.map((t) => t.external_id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('handles triple FITID collision appending _2 and _3', () => {
+    const content = `
+<OFX>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<STMTRS>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-1.00
+<FITID>DUPID
+<NAME>Tx 1
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-2.00
+<FITID>DUPID
+<NAME>Tx 2
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-3.00
+<FITID>DUPID
+<NAME>Tx 3
+</STMTTRN>
+</BANKTRANLIST>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>`;
+    const transactions = parseOFX(content);
+    expect(transactions).toHaveLength(3);
+    expect(transactions[0].external_id).toBe('DUPID');
+    expect(transactions[1].external_id).toBe('DUPID_2');
+    expect(transactions[2].external_id).toBe('DUPID_3');
+  });
 });
