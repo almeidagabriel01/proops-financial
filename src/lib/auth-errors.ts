@@ -1,9 +1,14 @@
 const AUTH_ERRORS: Record<string, string> = {
   'Invalid login credentials': 'Email ou senha incorretos',
+  // NOTE: 'User already registered' is dead code when email confirmation is enabled.
+  // Supabase intentionally returns { error: null } for duplicate emails to prevent
+  // email enumeration attacks. This mapping only triggers when email confirmation
+  // is disabled in the Supabase Dashboard.
   'User already registered': 'Este email já está em uso',
   'Email not confirmed': 'Confirme seu email antes de fazer login',
   'Password should be at least 6 characters': 'A senha deve ter no mínimo 8 caracteres',
   'over_email_send_rate_limit': 'Muitas tentativas. Aguarde antes de tentar novamente',
+  'over_request_rate_limit': 'Muitas tentativas. Aguarde antes de tentar novamente',
   'For security purposes, you can only request this after': 'Muitas tentativas. Aguarde antes de tentar novamente',
   'Unable to validate email address: invalid format': 'Informe um email válido',
 };
