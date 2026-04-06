@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 
 **Produto:** App Financeiro Pessoal com IA — Brasil
-**Versao:** 1.0
-**Data:** 2026-04-05
+**Versao:** 1.4
+**Data:** 2026-04-06
 **Autor:** Morgan (@pm)
 **Status:** Approved
 
@@ -32,6 +32,7 @@ A oportunidade esta na intersecao de tres tendencias: IA generativa capaz de cat
 | 2026-04-05 | 1.1 | PRD aprovado. Trial 7 dias incluido, gateway Asaas confirmado (stack posteriormente retificada na v1.2) | Morgan (@pm) |
 | 2026-04-05 | 1.2 | Stack retificada: Next.js web mobile-first (substitui React Native), Supabase (substitui Railway), removido App Store/Play Store do MVP | Morgan (@pm) |
 | 2026-04-05 | 1.3 | QA review fixes: story 1.1 monorepo→projeto, dedup CSV via SHA-256, 14 categorias, email→msg in-app, check server-side Premium, constraints renumerados | Quinn (@qa) |
+| 2026-04-06 | 1.4 | Revisao completa do modelo de planos: Free/Premium substituido por Basic (R$19,90/mes) e Pro (R$49,90/mes). Adicionados: chat Basic com Haiku (50 perguntas/mes), chat Pro com Sonnet + function calling (200 perguntas/mes), entrada por audio Pro via Whisper, secao de Function Calling na arquitetura, impacto no schema (audio_enabled), WhatsApp documentado como roadmap futuro, sem plano gratuito permanente | Morgan (@pm) |
 
 ---
 
@@ -43,9 +44,9 @@ A oportunidade esta na intersecao de tres tendencias: IA generativa capaz de cat
 
 - **FR1:** O sistema deve permitir importacao de extratos bancarios nos formatos OFX e CSV
 - **FR2:** O sistema deve fazer parsing automatico dos arquivos importados, extraindo data, valor, descricao e tipo de transacao (debito/credito)
-- **FR3:** O sistema deve suportar importacao de multiplos extratos de diferentes bancos (Premium)
+- **FR3:** O sistema deve suportar importacao de ate 3 contas bancarias (Basic) ou contas ilimitadas (Pro); tentativa de adicionar a 4a conta no Basic deve ser bloqueada com mensagem clara de upgrade
 - **FR4:** O sistema deve detectar e ignorar transacoes duplicadas ao importar um novo extrato
-- **FR5:** O sistema deve armazenar historico completo de transacoes importadas (Premium: historico ilimitado; Free: mes atual)
+- **FR5:** O sistema deve armazenar historico completo de transacoes importadas — historico ilimitado em ambos os planos pagos (Basic e Pro)
 
 **Categorizacao com IA:**
 
@@ -60,27 +61,47 @@ A oportunidade esta na intersecao de tres tendencias: IA generativa capaz de cat
 - **FR11:** O dashboard deve incluir: total de receitas, total de despesas, saldo do periodo, e distribuicao por categoria (grafico)
 - **FR12:** O dashboard deve ser visualmente impactante e completo mesmo no plano gratuito — nao e uma versao degradada
 - **FR13:** O sistema deve exibir lista de transacoes com filtros por categoria, periodo e valor
-- **FR14:** O sistema deve mostrar comparativo mes-a-mes de gastos por categoria (Premium)
+- **FR14:** O sistema deve mostrar comparativo mes-a-mes de gastos por categoria (Basic e Pro)
 
 **IA Conversacional:**
 
-- **FR15:** O sistema deve oferecer interface de chat onde o usuario faz perguntas em portugues natural sobre seus dados financeiros (Premium)
-- **FR16:** A IA deve responder consultas como: "quanto gastei com alimentacao esse mes?", "qual meu maior gasto em marco?", "quanto estou gastando de Uber por mes?"
+- **FR15:** O sistema deve oferecer interface de chat em ambos os planos pagos, com capacidades diferenciadas por plano:
+  - **Basic (Claude Haiku):** consultas sobre dados financeiros — "quanto gastei com X?", "qual meu saldo?", "analise meus gastos de marco" — sem acoes na plataforma
+  - **Pro (Claude Sonnet):** consultas identicas ao Basic, mais acoes via function calling: criar transacao, recategorizar transacao, criar/ajustar orcamento por categoria, criar objetivo financeiro com meta e prazo, excluir transacao
+- **FR16:** A IA deve responder consultas como: "quanto gastei com alimentacao esse mes?", "qual foi meu maior gasto em marco?", "quanto gasto de Uber por mes em media?" — em ambos os planos (Basic e Pro)
 - **FR17:** A IA deve basear respostas exclusivamente nos dados reais importados pelo usuario — nunca inventar dados
 - **FR18:** A IA deve responder em portugues brasileiro natural, com tom acessivel e sem jargao financeiro
-- **FR19:** O sistema deve controlar custo de IA por usuario (rate limiting, caching de respostas similares)
+- **FR19:** O sistema deve controlar custo de IA por usuario (rate limiting, caching de respostas similares):
+  - Basic: 50 perguntas/mes (Claude Haiku)
+  - Pro: 200 perguntas/mes (Claude Sonnet)
+  - Verificacao server-side obrigatoria em toda chamada de chat — nunca confiar apenas no frontend
 
 **Autenticacao e Conta:**
 
 - **FR20:** O sistema deve permitir cadastro via email/senha e login social (Google) usando Supabase Auth
 - **FR21:** O sistema deve utilizar Supabase Auth para gerenciamento de sessoes, JWT e refresh tokens
-- **FR22:** O sistema deve gerenciar planos do usuario (Free / Premium) com controle de acesso por feature
+- **FR22:** O sistema deve gerenciar planos do usuario (Basic / Pro) com controle de acesso por feature; sem plano gratuito permanente — trial de 7 dias no Pro ativado automaticamente no cadastro
 
 **Assinatura e Pagamento:**
 
-- **FR23:** O sistema deve oferecer plano gratuito com funcionalidades limitadas (1 conta, mes atual, categorizacao, dashboard)
-- **FR24:** O sistema deve oferecer plano Premium com assinatura mensal (R$14,90-29,90) e anual com desconto
-- **FR25:** O sistema deve integrar gateway de pagamento para processar assinaturas recorrentes
+- **FR23:** O sistema deve oferecer plano **Basic** (R$19,90/mes | R$191,00/ano) com: ate 3 contas bancarias, historico ilimitado, categorizacao IA, dashboard e relatorios basicos, comparativo mes a mes, chat IA consultas 50 perguntas/mes (Haiku)
+- **FR24:** O sistema deve oferecer plano **Pro** (R$49,90/mes | R$479,00/ano) com: contas ilimitadas, historico ilimitado, categorizacao IA, dashboard e relatorios avancados, comparativo mes a mes, chat IA consultas + acoes 200 perguntas/mes (Sonnet), entrada por audio via Whisper
+- **FR25:** O sistema deve integrar gateway de pagamento (Asaas) para processar assinaturas recorrentes (cartao, boleto, Pix) com planos mensal e anual
+
+**Entrada por Audio (Pro):**
+
+- **FR26:** O sistema deve aceitar entrada por audio no chat (apenas Pro): usuario grava mensagem de voz → sistema transcreve via Whisper API (OpenAI) → texto transcrito entra no fluxo normal de chat IA; custo estimado ~R$0,01/minuto de audio
+- **FR27:** Usuarios Basic que tentem usar audio devem ver bloqueio claro com CTA de upgrade para Pro
+
+**Function Calling — Acoes via Chat (Pro):**
+
+- **FR28:** No plano Pro, a IA deve poder executar acoes na plataforma via function calling alem de responder consultas; funcoes disponiveis exclusivamente Pro:
+  - `create_transaction` — criar receita ou despesa manualmente
+  - `update_transaction_category` — categorizar ou recategorizar transacao
+  - `delete_transaction` — excluir transacao
+  - `create_budget` — criar ou ajustar orcamento por categoria
+  - `create_goal` — criar objetivo financeiro com meta e prazo
+- **FR29:** Usuarios Basic que tentem usar acoes via chat devem ver resposta explicando que e funcionalidade Pro, com CTA de upgrade
 
 ### 2.2 Non-Functional Requirements
 
@@ -180,13 +201,54 @@ A definir. Para o MVP, usar design system limpo com paleta que transmita confian
 - **Banco de dados:** PostgreSQL gerenciado pelo Supabase. Schema deve suportar multi-tenancy por usuario. RLS (Row Level Security) do Supabase para isolamento de dados
 - **Autenticacao:** Supabase Auth (ja inclui email/senha, Google OAuth, JWT, refresh tokens, session management)
 - **Storage:** Supabase Storage para arquivos OFX/CSV enviados pelos usuarios
-- **IA:** Claude API (Anthropic) para categorizacao e chat. Modelos menores (Haiku) para categorizacao em batch, modelos maiores (Sonnet) para chat conversacional
+- **IA — Modelos por plano:**
+  - Categorizacao batch (todos os planos): Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) — custo otimizado
+  - Chat Basic: Claude Haiku 4.5 — consultas simples, 50 perguntas/mes
+  - Chat Pro: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — consultas + function calling, 200 perguntas/mes
+  - Audio Pro: Whisper API (OpenAI) para transcricao antes de passar ao Sonnet
 - **Pagamentos:** Asaas como gateway (brasileiro, suporta cartao/boleto/Pix, custo menor no estagio inicial). Stripe para futura internacionalizacao
 - **OFX Parser:** Biblioteca existente para parsing de OFX (ex: ofx-js). CSV parser customizado com deteccao de formato por banco
-- **Controle de custo IA:** Rate limiting por usuario (ex: 20 perguntas/dia no Premium), caching de respostas para queries identicas
+- **Controle de custo IA:** Rate limiting por usuario (Basic: 50/mes Haiku; Pro: 200/mes Sonnet), caching de respostas para queries identicas, verificacao server-side em cada chamada
+- **Schema de planos:** `profiles.plan = 'basic' | 'pro'` (sem 'free'); `profiles.audio_enabled = boolean` (true apenas Pro, derivado do plano mas materializado para performance); `profiles.trial_ends_at` mantido
 - **Logging e monitoramento:** Desde o Epic 1 — nao como feature final. Sentry para erros, logs estruturados
 - **Preparacao para Open Finance:** Camada de abstracao no data layer (DataSource interface) que hoje usa OFX/CSV e amanha usa API de agregador sem mudar o resto do sistema
-- **Preparacao para WhatsApp:** Camada de interface (Channel interface) que hoje e a web app e amanha inclui WhatsApp sem mudar logica de negocio
+- **WhatsApp — Roadmap Futuro:** Canal WhatsApp mapeado para apos MVP. Channel abstraction (Channel interface) ja planejada na arquitetura — hoje a web app e o unico canal, amanha WhatsApp pode ser adicionado reutilizando toda a logica de negocio (chat, function calling, contexto financeiro) sem reescrita. Nao implementar no MVP
+
+### 4.5 IA Architecture — Function Calling & Audio (Pro)
+
+**Function Calling (Pro only)**
+
+O chat Pro usa Claude Sonnet com function calling nativo. A IA decide quando executar uma acao baseada no que o usuario pediu em linguagem natural.
+
+Funcoes disponiveis (todas exclusivas Pro):
+
+| Funcao | Descricao | Verificacao |
+|--------|-----------|-------------|
+| `create_transaction` | Cria receita ou despesa manualmente | Plan = Pro, server-side |
+| `update_transaction_category` | Categoriza ou recategoriza transacao existente | Plan = Pro, server-side |
+| `delete_transaction` | Exclui transacao (com confirmacao) | Plan = Pro, server-side |
+| `create_budget` | Cria ou ajusta orcamento mensal por categoria | Plan = Pro, server-side |
+| `create_goal` | Cria objetivo financeiro com meta e prazo | Plan = Pro, server-side |
+
+Regras de implementacao:
+- Verificacao de plano na API route antes de incluir funcoes no payload do Sonnet — usuarios Basic nunca recebem function definitions
+- Confirmacao explicita do usuario antes de acoes destrutivas (`delete_transaction`)
+- Todas as acoes executadas com `SUPABASE_SERVICE_ROLE_KEY` server-side — RLS do usuario aplicado via `user_id` na query
+- Resposta ao usuario confirmando a acao executada (ex: "Transacao de R$150,00 em Alimentacao criada com sucesso")
+
+**Audio Input (Pro only)**
+
+Fluxo de audio → chat:
+1. Usuario grava mensagem de voz no frontend (Web Audio API / MediaRecorder)
+2. Audio enviado para API route `/api/chat` com `Content-Type: multipart/form-data`
+3. API route transcreve via **Whisper API** (OpenAI): `POST /v1/audio/transcriptions`
+4. Texto transcrito entra no fluxo normal de chat Pro (Sonnet + function calling)
+5. Custo estimado Whisper: ~$0.006/minuto ≈ R$0,01/minuto ao cambio atual
+
+Verificacoes de plano:
+- `profiles.audio_enabled = true` verificado server-side antes de aceitar audio
+- Usuarios Basic recebem erro `403` com mensagem de upgrade se tentarem enviar audio
+- `audio_enabled` e `true` por default ao ativar Pro ou trial, `false` ao downgrade
 
 ---
 
@@ -195,7 +257,7 @@ A definir. Para o MVP, usar design system limpo com paleta que transmita confian
 - **CON1:** Desenvolvimento solo com Claude Code como par — escopo deve ser realista para 1 pessoa
 - **CON2:** Budget de infraestrutura limitado — maximo ~US$50/mes ate validacao
 - **CON3:** Sem Open Finance API no MVP — somente OFX/CSV
-- **CON4:** Sem WhatsApp no MVP — somente web app mobile-first
+- **CON4:** Sem WhatsApp no MVP — somente web app mobile-first; Channel abstraction planejada para facilitar adicao futura sem reescrita
 - **CON5:** Timeline de 3-4 meses para MVP funcional
 - **CON6:** Conformidade com LGPD obrigatoria desde o dia 1
 - **CON7:** Sem publicacao em App Store / Play Store no MVP — acesso via browser
@@ -346,13 +408,13 @@ Refinamento de UX, onboarding guiado, integracao completa de pagamentos recorren
 
 ---
 
-### Epic 3: IA Conversacional & Premium
+### Epic 3: IA Conversacional & Planos
 
-**Goal:** Implementar o diferencial competitivo do produto — o assistente de IA que responde perguntas em portugues natural usando os dados reais do usuario. Simultaneamente, implementar a separacao Free/Premium e o paywall, transformando a IA conversacional no gate de monetizacao.
+**Goal:** Implementar o diferencial competitivo do produto — o assistente de IA que responde perguntas em portugues natural e executa acoes (Pro) usando os dados reais do usuario. Implementar a separacao Basic/Pro, paywall, integracao de pagamentos e entrada por audio (Pro).
 
 #### Story 3.1: Chat Interface & AI Conversational Engine
 
-> Como usuario Premium,
+> Como usuario (Basic ou Pro),
 > quero fazer perguntas sobre minhas financas em portugues natural,
 > para que eu obtenha insights sem precisar navegar por telas e graficos.
 
@@ -364,39 +426,42 @@ Refinamento de UX, onboarding guiado, integracao completa de pagamentos recorren
 5. Responde corretamente a consultas como: "quanto gastei com alimentacao esse mes?", "qual foi meu maior gasto em marco?", "quanto gasto de Uber por mes em media?"
 6. Respostas em PT-BR natural, tom acessivel, sem jargao tecnico ou financeiro
 7. Quando nao tem dados suficientes para responder, diz claramente em vez de inventar
-8. Rate limiting: maximo 20 perguntas por dia por usuario Premium
+8. Rate limiting server-side: Basic = 50 perguntas/mes (Haiku); Pro = 200 perguntas/mes (Sonnet)
 9. Historico de conversas persistido para continuidade
-10. Verificacao server-side obrigatoria do plano Premium na API route — o hook frontend e apenas UX, nunca seguranca
+10. Verificacao server-side obrigatoria do plano na API route — frontend e apenas UX
+11. **Pro only:** Function calling habilitado (FR28) — IA executa acoes diretamente na plataforma
+12. **Pro only:** Entrada por audio (FR26) — gravar mensagem de voz, transcrever via Whisper, processar como chat normal
 
-#### Story 3.2: Free/Premium Plan System & Paywall
+#### Story 3.2: Basic/Pro Plan System & Paywall
 
 > Como produto,
-> quero separar funcionalidades entre planos Free e Premium,
-> para que usuarios gratuitos tenham valor suficiente para confiar e usuarios pagantes tenham motivo para pagar.
+> quero separar funcionalidades entre planos Basic e Pro,
+> para que todos os usuarios pagantes tenham valor claro e diferenciado.
 
 **Acceptance Criteria:**
-1. Modelo de plano no banco: Free e Premium com flag por usuario
-2. Middleware de autorizacao que verifica plano do usuario antes de permitir acesso a features Premium
-3. Features Free: importacao de 1 conta, categorizacao, dashboard com mes atual
-4. Features Premium: IA conversacional, historico completo, multiplas contas, comparativos
-5. Tela de paywall/upgrade mostrando beneficios do Premium com CTA claro
-6. Paywall aparece de forma nao intrusiva quando usuario tenta acessar feature Premium
-7. Demonstracao no paywall: exemplo de pergunta que a IA responderia com os dados do usuario (teaser)
-8. Trial de 7 dias do Premium para novos usuarios — ativado automaticamente no cadastro
+1. Modelo de plano no banco: `profiles.plan = 'basic' | 'pro'`; `profiles.audio_enabled = boolean`
+2. Sem plano gratuito permanente — trial de 7 dias no Pro ativado automaticamente no cadastro
+3. Middleware de autorizacao server-side verificando plano antes de features restritas
+4. Features Basic: ate 3 contas, historico ilimitado, categorizacao IA, dashboard basico, comparativos, chat consultas 50/mes (Haiku)
+5. Features Pro: contas ilimitadas, tudo do Basic, chat consultas + acoes 200/mes (Sonnet), audio, relatorios avancados
+6. Bloqueio de 4a conta no Basic com mensagem de upgrade (nao erro generico)
+7. Tela de paywall/upgrade com comparativo Basic vs Pro e CTA claro
+8. Paywall aparece de forma nao intrusiva quando usuario tenta feature Pro
+9. Demonstracao no paywall: exemplo de acao que o Pro executaria (teaser de function calling)
 
 #### Story 3.3: Payment Integration & Subscription Management
 
 > Como usuario,
-> quero assinar o plano Premium com pagamento recorrente,
-> para que eu tenha acesso continuo as funcionalidades avancadas.
+> quero assinar o plano Basic ou Pro com pagamento recorrente,
+> para que eu tenha acesso continuo as funcionalidades do plano escolhido.
 
 **Acceptance Criteria:**
-1. Integracao com Asaas como gateway de pagamento para assinaturas recorrentes (suporte a cartao, boleto e Pix)
-2. Plano mensal e anual com desconto (ex: anual = 2 meses gratis)
-3. Fluxo de checkout dentro do app com cartao de credito, boleto e Pix
-4. Webhook para processar eventos de pagamento (confirmacao, falha, cancelamento)
-5. Upgrade/downgrade de plano refletido imediatamente no acesso a features
-6. Tela de gerenciamento de assinatura: plano atual, proxima cobranca, cancelar
+1. Integracao com Asaas para assinaturas recorrentes (cartao, boleto, Pix)
+2. Planos: Basic R$19,90/mes | R$191,00/ano; Pro R$49,90/mes | R$479,00/ano (anual = 2 meses gratis)
+3. Fluxo de checkout dentro do app com cartao, boleto e Pix
+4. Webhook processando eventos: confirmacao, falha, cancelamento, upgrade/downgrade
+5. Mudanca de plano refletida imediatamente no acesso a features e em `audio_enabled`
+6. Tela de gerenciamento de assinatura: plano atual, proxima cobranca, trocar plano, cancelar
 7. Tratamento de falha de pagamento: notificacao + periodo de graca de 3 dias antes de revogar acesso
 
 ---
