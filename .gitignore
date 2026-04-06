@@ -11,11 +11,20 @@
 node_modules/
 node_modules
 
-# Build & Logs (AIOX)
+# Build & Logs
 dist/
 build/
 *.log
 logs/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Supabase
+.supabase/
+supabase/.temp/
 
 # IDE & OS (AIOX)
 .DS_Store

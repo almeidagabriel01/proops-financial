@@ -272,6 +272,8 @@ create policy "Users can view own subscriptions"
 -- category_cache (global read for authenticated, write via service role)
 create policy "Authenticated users can read category cache"
   on public.category_cache for select using (auth.role() = 'authenticated');
+create policy "Service role manages category cache"
+  on public.category_cache for all using (auth.role() = 'service_role');
 
 -- ============================================================
 -- Storage bucket for OFX/CSV imports
