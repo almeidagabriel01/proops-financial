@@ -84,10 +84,11 @@ interface ParsedTransaction {
 - Salvar resultado no `category_cache` para reutilização cross-user
 
 ### chat.ts — Conversational AI
-- Modelo: Claude Sonnet 4.6 com streaming
-- Contexto: transações categorizadas do usuário (últimos N meses)
+- **Basic:** Claude Haiku 4.5 (`claude-haiku-4-5-20251001`), sem tools, 50 msgs/mês
+- **Pro:** Claude Sonnet 4.6 (`claude-sonnet-4-6`), com function calling, 200 msgs/mês
+- Contexto: transações categorizadas do usuário (últimos 3 meses, agregado)
 - Responde APENAS com base nos dados reais — nunca inventar números
-- Rate limit: 20 msgs/dia verificado server-side ANTES de chamar a API
+- Rate limit verificado server-side ANTES de chamar a API (campo `ai_queries_this_month`)
 
 ### prompts/
 - `categorize.ts` — prompt otimizado para 14 categorias + contexto BR
@@ -101,18 +102,25 @@ interface ParsedTransaction {
 
 ## billing/
 
+### plans.ts — FONTE DE VERDADE para planos
+```typescript
+import { PLAN_LIMITS, CATEGORIES, Category, getEffectiveTier } from '@/lib/billing/plans'
+```
+- `PLAN_LIMITS.basic` / `PLAN_LIMITS.pro` — limites por tier
+- `getEffectiveTier(plan, trial_ends_at)` — retorna tier efetivo considerando trial
+- **Usar apenas server-side** para decisões de autorização
+
+Planos:
+- **Basic** (R$19,90/mês): 3 contas, Haiku, 50 msgs/mês, sem áudio, sem function calling
+- **Pro** (R$49,90/mês): contas ilimitadas, Sonnet, 200 msgs/mês, áudio Whisper, function calling
+
 ### asaas.ts
 - Cliente HTTP para Asaas API
 - Criar/cancelar assinaturas, consultar status
 
-### plans.ts
-- Definições de planos (Free / Premium)
-- Limites por plano (contas, histórico, rate limit IA)
-- Helper `isPremium(profile)` — verifica plan + trial_ends_at
-
 ### webhook-handler.ts
 - Processar eventos: `PAYMENT_CONFIRMED`, `PAYMENT_OVERDUE`, `SUBSCRIPTION_CANCELED`
-- Atualizar `subscriptions` table → trigger sincroniza `profiles.plan`
+- Atualizar `subscriptions` table → trigger sincroniza `profiles.plan` e `audio_enabled`
 - Período de graça de 3 dias para `PAYMENT_OVERDUE`
 
 ---
@@ -121,14 +129,13 @@ interface ParsedTransaction {
 
 ### constants.ts
 ```typescript
-export const CATEGORIES = ['alimentacao', 'delivery', 'transporte', 'moradia',
-  'saude', 'educacao', 'lazer', 'compras', 'assinaturas', 'transferencias',
-  'salario', 'investimentos', 'impostos', 'outros'] as const
-
+// Apenas constantes gerais — NÃO contém CATEGORIES, PLANS ou limites de IA
+export const APP_NAME = 'Finansim'
 export const MAX_FILE_SIZE_MB = 5
-export const AI_QUERIES_PER_DAY = 20
 export const TRIAL_DAYS = 7
 ```
+
+Para categorias, planos e limites de IA: usar `@/lib/billing/plans`
 
 ### format.ts
 - `formatCurrency(amount)` — R$ 1.234,56 (locale pt-BR)
@@ -136,8 +143,29 @@ export const TRIAL_DAYS = 7
 - `normalizeDescription(text)` — lowercase + trim + whitespace-collapse (para cache)
 
 ### rate-limit.ts
-- `checkAndIncrementAIQuota(userId)` — verifica + incrementa `ai_queries_today`
-- Reset automático via `ai_queries_reset_at` (comparar com data atual)
+- `checkAndIncrementAIQuota(userId, plan)` — verifica + incrementa `ai_queries_this_month`
+- Limite mensal por plano: Basic = 50, Pro = 200 (via `PLAN_LIMITS`)
+- Reset automático via `ai_queries_reset_at` (primeiro dia do mês corrente)
+
+---
+
+## Schema DB — Campos relevantes em profiles
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `plan` | `'basic' \| 'pro'` | Tier do plano (fonte de verdade para features) |
+| `trial_ends_at` | `timestamptz` | Fim do trial Pro (7 dias do signup) |
+| `audio_enabled` | `boolean` | Hint de performance — verificar junto com plan/trial |
+| `ai_queries_this_month` | `int` | Contador mensal de uso de IA |
+| `ai_queries_reset_at` | `date` | Primeiro dia do mês do último reset |
+
+**Gate de áudio correto (server-side):**
+```typescript
+const inTrial = profile.trial_ends_at
+  ? new Date(profile.trial_ends_at) > new Date()
+  : false;
+const canUseAudio = (profile.plan === 'pro' || inTrial) && profile.audio_enabled;
+```
 
 ---
 

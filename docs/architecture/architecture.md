@@ -1,11 +1,11 @@
 # Architecture Document
 
 **Produto:** App Financeiro Pessoal com IA — Brasil
-**Versao:** 1.0
-**Data:** 2026-04-05
+**Versao:** 1.3
+**Data:** 2026-04-06
 **Autor:** Aria (@architect)
 **Status:** Approved
-**PRD Ref:** `docs/prd/prd.md` v1.2 (Approved)
+**PRD Ref:** `docs/prd/prd.md` v1.4 (Approved)
 
 ---
 
@@ -44,12 +44,12 @@
 │  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
 └─────────────────────────────────────────────────────────┘
 
-┌──────────────────┐  ┌──────────────────┐
-│   Claude API     │  │     Asaas        │
-│  (Anthropic)     │  │  (Pagamentos)    │
-│  Haiku + Sonnet  │  │  Cartao/Boleto/  │
-│                  │  │  Pix             │
-└──────────────────┘  └──────────────────┘
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│   Claude API     │  │   Whisper API    │  │     Asaas        │
+│  (Anthropic)     │  │   (OpenAI)       │  │  (Pagamentos)    │
+│  Haiku + Sonnet  │  │  Audio→Texto     │  │  Cartao/Boleto/  │
+│  Function Call   │  │  Pro only        │  │  Pix             │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
 ### 1.2 Design Principles
@@ -72,7 +72,10 @@
 | Auth | Supabase Auth | NextAuth/custom JWT | Ja integrado, Google OAuth pronto, session management automatico |
 | File storage | Supabase Storage | S3/Vercel Blob | Ja incluso no Supabase, RLS para acesso por usuario |
 | IA categorization | Claude Haiku 4.5 | GPT-4o-mini | Melhor custo-beneficio, prompt em PT-BR superior |
-| IA chat | Claude Sonnet 4.6 | GPT-4o | Melhor para PT-BR, streaming nativo, function calling |
+| IA chat Basic | Claude Haiku 4.5 | GPT-4o-mini | Consultas simples, custo otimizado, 50 msgs/mes |
+| IA chat Pro | Claude Sonnet 4.6 | GPT-4o | PT-BR superior, streaming nativo, function calling nativo |
+| Function Calling | Vercel AI SDK (`ai` package) | Anthropic SDK raw | Abstração streaming + tools integrada ao Next.js App Router |
+| Audio transcription | Whisper API (OpenAI) | Deepgram/AssemblyAI | Melhor WER em PT-BR, custo $0.006/min, SDK simples |
 | Payments | Asaas | Stripe | Brasileiro, boleto+Pix nativos, custo menor para early stage |
 
 ---
@@ -117,7 +120,9 @@ financial/
 │   │       ├── import/
 │   │       │   └── route.ts   # POST: parse OFX/CSV, categorize, save
 │   │       ├── chat/
-│   │       │   └── route.ts   # POST: stream AI response
+│   │       │   └── route.ts   # POST: stream AI response (Basic: Haiku, Pro: Sonnet + tools)
+│   │       ├── audio/
+│   │       │   └── route.ts   # POST: audio→text via Whisper (Pro only)
 │   │       ├── webhook/
 │   │       │   └── asaas/
 │   │       │       └── route.ts  # POST: payment events
@@ -165,7 +170,15 @@ financial/
 │   │   │
 │   │   ├── ai/                # AI integration
 │   │   │   ├── categorizer.ts # Batch categorization logic
-│   │   │   ├── chat.ts        # Chat completion with context
+│   │   │   ├── chat.ts        # Chat completion with context (Basic/Pro)
+│   │   │   ├── audio.ts       # Whisper transcription (Pro only)
+│   │   │   ├── tools/         # Function calling tool definitions
+│   │   │   │   ├── create-transaction.ts
+│   │   │   │   ├── update-transaction-category.ts
+│   │   │   │   ├── delete-transaction.ts
+│   │   │   │   ├── create-budget.ts
+│   │   │   │   ├── create-goal.ts
+│   │   │   │   └── index.ts   # Exports PRO_TOOLS array
 │   │   │   ├── prompts/       # Prompt templates
 │   │   │   │   ├── categorize.ts
 │   │   │   │   └── chat-system.ts
@@ -173,7 +186,7 @@ financial/
 │   │   │
 │   │   ├── billing/           # Payment integration
 │   │   │   ├── asaas.ts       # Asaas API client
-│   │   │   ├── plans.ts       # Plan definitions (Free/Premium)
+│   │   │   ├── plans.ts       # Plan definitions (Basic/Pro)
 │   │   │   └── webhook-handler.ts  # Webhook event processing
 │   │   │
 │   │   └── utils/             # General utilities
@@ -184,13 +197,15 @@ financial/
 │   ├── hooks/                 # Custom React hooks
 │   │   ├── use-user.ts        # Current user + plan info
 │   │   ├── use-transactions.ts # Transaction queries
-│   │   └── use-premium.ts     # Premium gate hook
+│   │   └── use-plan.ts        # Plan gate hook (isBasic, isPro, canUseAudio, canUseTools)
 │   │
 │   └── middleware.ts          # Next.js middleware (auth redirect, rate limit)
 │
 ├── supabase/
 │   ├── migrations/            # SQL migrations (version controlled)
-│   │   └── 001_initial_schema.sql
+│   │   ├── 001_initial_schema.sql
+│   │   ├── 002_unaccent_search.sql
+│   │   └── 003_plan_restructure.sql  # basic/pro rename + audio_enabled column
 │   ├── functions/             # Supabase Edge Functions (Deno)
 │   │   └── categorize-import/ # Async categorization after import
 │   │       └── index.ts
@@ -241,11 +256,12 @@ financial/
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
-  plan text not null default 'free' check (plan in ('free', 'premium')),
-  trial_ends_at timestamptz default (now() + interval '7 days'),
+  plan text not null default 'basic' check (plan in ('basic', 'pro')),
+  trial_ends_at timestamptz default (now() + interval '7 days'),  -- trial Pro 7 dias no signup
+  audio_enabled boolean not null default false,                    -- true apenas Pro/trial
   asaas_customer_id text,
-  ai_queries_today int not null default 0,
-  ai_queries_reset_at date not null default current_date,
+  ai_queries_this_month int not null default 0,
+  ai_queries_reset_at date not null default date_trunc('month', current_date)::date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -432,11 +448,15 @@ create or replace function public.sync_plan_from_subscription()
 returns trigger as $$
 begin
   if new.status = 'active' then
-    update public.profiles set plan = 'premium' where id = new.user_id;
+    update public.profiles
+    set plan = 'pro', audio_enabled = true
+    where id = new.user_id;
   elsif new.status in ('canceled', 'expired') then
-    update public.profiles set plan = 'free' where id = new.user_id;
+    update public.profiles
+    set plan = 'basic', audio_enabled = false
+    where id = new.user_id;
   end if;
-  -- 'past_due' keeps premium during grace period (3 days handled by webhook)
+  -- 'past_due' keeps pro during grace period (3 days handled by webhook)
   return new;
 end;
 $$ language plpgsql security definer;
@@ -516,8 +536,11 @@ create policy "Authenticated users can read category cache"
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, display_name)
-  values (new.id, new.raw_user_meta_data->>'full_name');
+  -- plan defaults to 'basic'; trial_ends_at grants Pro features for 7 days
+  -- audio_enabled starts false — set to true via trial or Pro subscription
+  insert into public.profiles (id, display_name, audio_enabled)
+  values (new.id, new.raw_user_meta_data->>'full_name', true);
+  -- audio_enabled=true during trial (trial_ends_at > now() checked server-side)
   return new;
 end;
 $$ language plpgsql security definer;
@@ -556,7 +579,8 @@ create policy "Users can read own imports"
 |-------|--------|------|---------|-------|--------|
 | `/api/health` | GET | No | Health check | — | `{ status, supabase, timestamp }` |
 | `/api/import` | POST | Yes | Parse file + save (sync) + trigger categorization (async) | `FormData (file, bank_name)` | `{ importId, count, duplicates, status: 'categorizing' }` |
-| `/api/chat` | POST | Yes (Premium) | AI chat response | `{ message }` | `ReadableStream (SSE)` |
+| `/api/chat` | POST | Yes (Basic+Pro) | AI chat response — Haiku para Basic, Sonnet+tools para Pro | `{ message, plan? }` | `ReadableStream (SSE)` |
+| `/api/audio` | POST | Yes (Pro only) | Transcrever audio via Whisper antes de enviar ao chat | `FormData (audio: Blob)` | `{ transcript: string }` |
 | `/api/webhook/asaas` | POST | HMAC | Payment events | Asaas event payload | `200 OK` |
 
 ### 4.2 Import Pipeline (Two-Phase: Sync + Async)
@@ -638,38 +662,73 @@ Edge Function receives { importId, userId }
 
 ### 4.3 Chat Pipeline (POST /api/chat)
 
+O endpoint `/api/chat` serve tanto Basic quanto Pro. O modelo e as capacidades diferem por plano.
+
 ```
-Client sends message
+Client sends { message }
     │
     ▼
-[1] Validate auth + SERVER-SIDE Premium plan check (MANDATORY — client hook is UX only)
-    │  ├── Check profiles.plan = 'premium' OR trial_ends_at > now()
-    │  └── Check ai_queries_today < 20
-    │  FAIL → return 403 { error: 'premium_required' }
+[1] Validate auth (MANDATORY — server-side)
+    │  Lookup profiles: plan, trial_ends_at, audio_enabled,
+    │  ai_queries_this_month, ai_queries_reset_at
+    │
+    ├─ FAIL (no auth) → 401
+    │
     ▼
-[2] Increment ai_queries_today
-    │  (reset if ai_queries_reset_at < today)
+[2] Determine effective plan
+    │  isPro = plan === 'pro' OR trial_ends_at > now()
+    │  isBasic = plan === 'basic' AND trial_ends_at <= now()
+    │
     ▼
-[3] Load user's financial context
-    │  ├── Last 3 months of transactions (aggregated by category)
+[3] Check rate limit (server-side)
+    │  Basic: ai_queries_this_month < 50
+    │  Pro:   ai_queries_this_month < 200
+    │  Reset if ai_queries_reset_at < first day of current month
+    │  FAIL → 429 { error: 'quota_exceeded', plan, limit, used }
+    ▼
+[4] Increment ai_queries_this_month
+    │
+    ▼
+[5] Load financial context (same for both plans)
+    │  ├── Last 3 months aggregated by category
     │  ├── Monthly totals (income, expenses, balance)
-    │  └── Top categories with amounts
+    │  └── Top merchants/categories
     ▼
-[4] Build prompt
-    │  ├── System prompt: financial assistant persona, PT-BR, rules
-    │  ├── Context: user's financial summary (structured data)
-    │  └── User message
+[6] Build model config based on plan
+    │  Basic: model = 'claude-haiku-4-5-20251001', tools = []
+    │  Pro:   model = 'claude-sonnet-4-6',         tools = PRO_TOOLS (5 funções)
     ▼
-[5] Save user message to chat_messages BEFORE calling AI
-    │  (ensures message is persisted even if stream fails)
+[7] Save user message to chat_messages BEFORE AI call
+    │  (persists even if stream fails)
     ▼
-[6] Call Claude Sonnet 4.6 (streaming)
-    │  Stream response via ReadableStream / SSE
+[8A] Basic path: stream Haiku response (text only)
+    │  No tools attached → pure conversation
+    │  Stream via ReadableStream / SSE
+    │
+[8B] Pro path: Sonnet with tool_choice='auto' (Vercel AI SDK)
+    │  ├── LLM may respond with text (consulta) OR tool_call (ação)
+    │  │
+    │  ├── TEXT RESPONSE → stream to client (same as Basic)
+    │  │
+    │  └── TOOL CALL:
+    │       ├── delete_transaction → send confirmation request to client
+    │       │   Client must confirm → re-call with { confirmed: true }
+    │       ├── Validate plan = 'pro' again (defense-in-depth)
+    │       ├── Execute action server-side with service_role key
+    │       ├── Return tool result to Sonnet
+    │       └── Sonnet streams confirmation message to user
     ▼
-[7] Save assistant message to chat_messages AFTER stream completes
-    │  (if stream fails mid-response, user message is preserved for context)
+[9] Save assistant message to chat_messages AFTER stream completes
     ▼
-[8] Stream complete
+[10] Stream complete
+```
+
+**Diferenciação por plano no mesmo endpoint:**
+```typescript
+// src/app/api/chat/route.ts
+const isPro = profile.plan === 'pro' || new Date(profile.trial_ends_at) > new Date();
+const model = isPro ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
+const tools = isPro ? PRO_TOOLS : [];   // PRO_TOOLS importado de lib/ai/tools/index.ts
 ```
 
 ### 4.4 Webhook Pipeline (POST /api/webhook/asaas)
@@ -682,10 +741,10 @@ Asaas sends event
     │
     ▼
 [2] Parse event type
-    │  ├── PAYMENT_CONFIRMED → activate/renew subscription
-    │  ├── PAYMENT_OVERDUE → mark past_due, start grace period
+    │  ├── PAYMENT_CONFIRMED → activate/renew subscription → plan='pro', audio_enabled=true
+    │  ├── PAYMENT_OVERDUE → mark past_due, start grace period (3 days)
     │  ├── PAYMENT_DELETED → handle cancellation
-    │  └── SUBSCRIPTION_DELETED → downgrade to free
+    │  └── SUBSCRIPTION_DELETED → downgrade to basic, audio_enabled=false
     ▼
 [3] Update subscriptions + profiles tables
     │
@@ -815,17 +874,158 @@ interface FinancialContext {
 
 | Controle | Implementacao | Camada |
 |----------|--------------|--------|
-| Rate limit (negocio) | `profiles.ai_queries_today < 20` | Supabase (tabela) |
+| Rate limit Basic | `ai_queries_this_month < 50` (Haiku) | Supabase (tabela) |
+| Rate limit Pro | `ai_queries_this_month < 200` (Sonnet) | Supabase (tabela) |
 | Rate limit (tecnico) | IP-based, 60 req/min | Next.js middleware |
 | Batch categorization | Todas transacoes de um extrato em 1 chamada | API Route |
-| Cache de categorias | Dictionary do usuario + tabela `category_cache` no Supabase evitam chamadas repetidas | `lib/ai/cache.ts` → `category_cache` table |
+| Cache de categorias | Dictionary do usuario + `category_cache` evitam chamadas repetidas | `lib/ai/cache.ts` |
 | Context size limit | Agregar dados financeiros, nao enviar transacoes raw | `lib/ai/chat.ts` |
-| Model selection | Haiku (barato) para batch, Sonnet (melhor) para chat | `lib/ai/` |
+| Model selection | Haiku para batch + Basic chat; Sonnet para Pro chat | `lib/ai/` |
+| Audio budget | Limite 2 minutos por mensagem de voz (~$0.012/msg) | `/api/audio` |
 
-**Custo estimado com 1.000 usuarios:**
+**Custo estimado com 1.000 usuarios (500 Basic + 500 Pro):**
 - Categorizacao: ~500 importacoes/mes × $0.015 = **~US$7.50/mes**
-- Chat: ~200 usuarios premium × 10 perguntas/mes × $0.01 = **~US$20/mes**
-- **Total IA: ~US$27.50/mes** (dentro do budget de US$50)
+- Chat Basic: ~300 usuarios × 20 msgs/mes × $0.001 (Haiku) = **~US$6/mes**
+- Chat Pro: ~200 usuarios × 30 msgs/mes × $0.015 (Sonnet) = **~US$90/mes** *(controlado pelo limite de 200/mes)*
+- Audio Pro: ~100 usuarios × 5 audios × $0.012 = **~US$6/mes**
+- **Total IA: ~US$40-50/mes** (dentro do budget de US$50 ate ~800 usuarios Pro ativos)
+
+### 5.6 Function Calling Architecture (Pro only)
+
+O chat Pro usa o **Vercel AI SDK** com `streamText()` + `tools` para permitir que o Sonnet execute ações reais na plataforma. O LLM decide quando chamar uma função baseado na mensagem do usuário em linguagem natural.
+
+**Tool definitions** — `src/lib/ai/tools/index.ts`:
+
+```typescript
+// Cada tool define: description (instrui o LLM quando chamar),
+// parameters (Zod schema validado automaticamente pelo SDK),
+// execute (chamada server-side, nunca exposta ao cliente)
+
+export const PRO_TOOLS = {
+  create_transaction: tool({
+    description: 'Cria uma receita ou despesa manualmente para o usuario',
+    parameters: z.object({
+      date: z.string().describe('Data no formato YYYY-MM-DD'),
+      description: z.string().describe('Descricao da transacao'),
+      amount: z.number().describe('Valor positivo para receita, negativo para despesa'),
+      category: z.enum(CATEGORIES),
+    }),
+    execute: async (args, { userId }) => { /* server-side insert */ }
+  }),
+
+  update_transaction_category: tool({
+    description: 'Atualiza a categoria de uma transacao existente',
+    parameters: z.object({
+      transactionId: z.string().uuid(),
+      newCategory: z.enum(CATEGORIES),
+    }),
+    execute: async (args, { userId }) => { /* server-side update */ }
+  }),
+
+  delete_transaction: tool({
+    description: 'Exclui uma transacao — requer confirmacao do usuario',
+    parameters: z.object({
+      transactionId: z.string().uuid(),
+      confirmed: z.boolean().describe('true somente apos confirmacao explicita do usuario'),
+    }),
+    execute: async (args, { userId }) => {
+      if (!args.confirmed) return { requiresConfirmation: true };
+      /* server-side delete */
+    }
+  }),
+
+  create_budget: tool({
+    description: 'Cria ou atualiza orcamento mensal para uma categoria',
+    parameters: z.object({
+      category: z.enum(CATEGORIES),
+      monthlyLimit: z.number().positive(),
+    }),
+    execute: async (args, { userId }) => { /* upsert budget */ }
+  }),
+
+  create_goal: tool({
+    description: 'Cria objetivo financeiro com meta e prazo',
+    parameters: z.object({
+      name: z.string(),
+      targetAmount: z.number().positive(),
+      targetDate: z.string().describe('Data alvo no formato YYYY-MM-DD'),
+    }),
+    execute: async (args, { userId }) => { /* insert goal */ }
+  }),
+};
+```
+
+**Fluxo de autorização (defense-in-depth):**
+
+```
+1. Middleware: auth check (Supabase session)
+2. API route: plan === 'pro' OR trial_ends_at > now()
+   └─ Basic → tools = [] (LLM nunca recebe tool definitions)
+3. Tool execute(): re-verifica userId === transaction.user_id antes de modificar
+4. Todas queries usam SUPABASE_SERVICE_ROLE_KEY com user_id explícito no WHERE
+```
+
+**Confirmação antes de ações destrutivas:**
+- `delete_transaction` exige `confirmed: true` no parâmetro
+- Se `confirmed: false` → tool retorna `{ requiresConfirmation: true }`
+- Sonnet usa esse retorno para pedir confirmação ao usuário na próxima mensagem
+- Usuário confirma → nova mensagem → Sonnet chama tool novamente com `confirmed: true`
+
+---
+
+### 5.7 Audio Input Architecture (Pro only)
+
+**Fluxo completo áudio → resposta IA:**
+
+```
+[Browser] MediaRecorder grava áudio (webm/opus)
+    │  Limite: 2 minutos (120s) — verificado no frontend antes do envio
+    ▼
+POST /api/audio (multipart/form-data)
+    │
+    ├─ [1] Validate auth + profiles.audio_enabled = true
+    │       FAIL → 403 { error: 'audio_pro_only', upgradeUrl: '/settings' }
+    │
+    ├─ [2] Validate file: tamanho < 25MB, formato aceito (webm, mp4, wav, m4a)
+    │
+    ├─ [3] POST para Whisper API (OpenAI):
+    │       POST https://api.openai.com/v1/audio/transcriptions
+    │       model: 'whisper-1', language: 'pt', response_format: 'text'
+    │
+    ├─ [4] Retornar { transcript: string } ao cliente
+    │
+    └─ Cliente usa transcript como mensagem → POST /api/chat normalmente
+```
+
+**Especificações técnicas:**
+
+| Item | Valor | Justificativa |
+|------|-------|---------------|
+| Formatos aceitos | webm, mp4, wav, m4a | Suporte nativo MediaRecorder (Chrome/Safari) |
+| Limite duração | 2 minutos | Balanço UX / custo (~$0.012/msg) |
+| Limite tamanho | 25 MB | Limite máximo da Whisper API |
+| Modelo Whisper | `whisper-1` | Único disponível; WER < 5% em PT-BR |
+| Language hint | `pt` | Reduz erros de transcrição em português |
+| Rota | `/api/audio` (separada) | Evita complexidade no endpoint de chat; retorna só o texto |
+
+**Bloqueio Basic — gate server-side correto:**
+```typescript
+// src/app/api/audio/route.ts
+// NOTA: audio_enabled é um hint de performance (materializado no DB),
+// NÃO é a fonte de verdade para autorização.
+// Fonte de verdade: plan === 'pro' || trial_ends_at > now()
+const inTrial = profile.trial_ends_at
+  ? new Date(profile.trial_ends_at) > new Date()
+  : false;
+const canUseAudio = (profile.plan === 'pro' || inTrial) && profile.audio_enabled;
+
+if (!canUseAudio) {
+  return NextResponse.json(
+    { error: 'audio_pro_only', message: 'Entrada por áudio disponível apenas no plano Pro' },
+    { status: 403 }
+  );
+}
+```
 
 ---
 
@@ -837,7 +1037,7 @@ interface FinancialContext {
 [Signup] → Supabase Auth (email/senha ou Google)
     │
     ▼
-[Trigger] → handle_new_user() cria profile com plan='free', trial 7 dias
+[Trigger] → handle_new_user() cria profile com plan='basic', trial 7 dias Pro
     │
     ▼
 [Login] → Supabase session (JWT no cookie httpOnly)
@@ -852,18 +1052,53 @@ interface FinancialContext {
 ### 6.2 Plan Verification
 
 ```typescript
-// src/hooks/use-premium.ts
+// src/hooks/use-plan.ts
 
-function useIsPremium(profile: Profile): boolean {
-  if (profile.plan === 'premium') return true;
-  if (profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date()) return true;
-  return false;
+interface PlanCapabilities {
+  isBasic: boolean;
+  isPro: boolean;
+  inTrial: boolean;
+  canUseAudio: boolean;
+  canUseFunctionCalling: boolean;
+  aiModel: string;
+  aiMonthlyLimit: number;
+  maxBankAccounts: number;
 }
 
-// Used in:
-// - Chat page: show paywall if not premium
-// - Transaction history: limit to current month if not premium
-// - Import: limit to 1 bank account if not premium
+function usePlan(profile: Profile): PlanCapabilities {
+  const inTrial = profile.trial_ends_at
+    ? new Date(profile.trial_ends_at) > new Date()
+    : false;
+  const isPro = profile.plan === 'pro' || inTrial;
+  const isBasic = !isPro;
+
+  return {
+    isBasic,
+    isPro,
+    inTrial,
+    canUseAudio: isPro && profile.audio_enabled,      // isPro já inclui trial; audio_enabled é hint
+    canUseFunctionCalling: isPro,
+    aiModel: isPro ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    aiMonthlyLimit: isPro ? 200 : 50,
+    maxBankAccounts: isPro ? Infinity : 3,
+  };
+}
+
+// IMPORTANTE: este hook é APENAS para UX (mostrar paywall, desabilitar botão).
+// A verificação de plano real é sempre server-side na API route.
+```
+
+**Auth Flow com plano:**
+```
+[Signup] → Supabase Auth → handle_new_user() cria profile:
+          plan='basic', audio_enabled=true, trial_ends_at=now()+7days
+          (trial Pro: audio + function calling habilitados por 7 dias)
+    │
+    ▼
+[Trial expira] → plan='basic' permanece, audio_enabled=false
+    │
+    ▼
+[Assina Pro] → PAYMENT_CONFIRMED webhook → plan='pro', audio_enabled=true
 ```
 
 ### 6.3 Middleware
@@ -965,8 +1200,8 @@ Client Components:
     → Frontend calls Asaas checkout URL (or embedded form)
     → User pays (cartao/boleto/Pix)
     → Asaas sends webhook to /api/webhook/asaas
-    → Backend updates subscription + profile.plan = 'premium'
-    → User refreshes → premium features unlocked
+    → Backend updates subscription + profile.plan = 'pro', audio_enabled = true
+    → User refreshes → Pro features unlocked
 ```
 
 ### 8.2 Plan Definitions
@@ -974,42 +1209,81 @@ Client Components:
 ```typescript
 // src/lib/billing/plans.ts
 
+export const CATEGORIES = [
+  'alimentacao','delivery','transporte','moradia','saude','educacao',
+  'lazer','compras','assinaturas','transferencias','salario',
+  'investimentos','impostos','outros'
+] as const;
+
 export const PLANS = {
-  free: {
-    name: 'Gratuito',
-    price: 0,
-    features: {
-      maxBankAccounts: 1,
-      historyMonths: 1,      // current month only
-      aiChat: false,
-      categoryComparison: false,
-    }
-  },
-  premium_monthly: {
-    name: 'Premium Mensal',
-    price: 2490,             // R$24,90 in centavos
-    asaasValue: 24.90,
+  basic_monthly: {
+    name: 'Basic Mensal',
+    price: 1990,             // R$19,90 em centavos
+    asaasValue: 19.90,
     billingCycle: 'MONTHLY',
     features: {
-      maxBankAccounts: 10,
+      maxBankAccounts: 3,
       historyMonths: Infinity,
       aiChat: true,
+      aiChatMonthly: 50,
+      aiModel: 'claude-haiku-4-5-20251001',
       categoryComparison: true,
+      audioEnabled: false,
+      functionCalling: false,
     }
   },
-  premium_yearly: {
-    name: 'Premium Anual',
-    price: 24900,            // R$249,00 (2 meses gratis)
-    asaasValue: 249.00,
+  basic_yearly: {
+    name: 'Basic Anual',
+    price: 19100,            // R$191,00 (~2 meses grátis)
+    asaasValue: 191.00,
     billingCycle: 'YEARLY',
     features: {
-      maxBankAccounts: 10,
+      maxBankAccounts: 3,
       historyMonths: Infinity,
       aiChat: true,
+      aiChatMonthly: 50,
+      aiModel: 'claude-haiku-4-5-20251001',
       categoryComparison: true,
+      audioEnabled: false,
+      functionCalling: false,
     }
-  }
+  },
+  pro_monthly: {
+    name: 'Pro Mensal',
+    price: 4990,             // R$49,90 em centavos
+    asaasValue: 49.90,
+    billingCycle: 'MONTHLY',
+    features: {
+      maxBankAccounts: Infinity,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 200,
+      aiModel: 'claude-sonnet-4-6',
+      categoryComparison: true,
+      audioEnabled: true,
+      functionCalling: true,
+    }
+  },
+  pro_yearly: {
+    name: 'Pro Anual',
+    price: 47900,            // R$479,00 (~2 meses grátis)
+    asaasValue: 479.00,
+    billingCycle: 'YEARLY',
+    features: {
+      maxBankAccounts: Infinity,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 200,
+      aiModel: 'claude-sonnet-4-6',
+      categoryComparison: true,
+      audioEnabled: true,
+      functionCalling: true,
+    }
+  },
 } as const;
+
+export type PlanKey = keyof typeof PLANS;
+export type PlanFeatures = typeof PLANS[PlanKey]['features'];
 ```
 
 ---
@@ -1020,7 +1294,7 @@ export const PLANS = {
 
 | Camada | Implementacao | Protege Contra |
 |--------|--------------|----------------|
-| **Encryption at-rest** | Supabase PostgreSQL uses AES-256 disk encryption on all plans (including free). NFR4 satisfied implicitly — no column-level encryption needed for MVP | Data theft from disk |
+| **Encryption at-rest** | Supabase PostgreSQL uses AES-256 disk encryption on all paid plans. NFR4 satisfied implicitly — no column-level encryption needed for MVP | Data theft from disk |
 | **Transport** | HTTPS (Vercel enforced) + TLS 1.3 | MITM, sniffing |
 | **Auth** | Supabase Auth (bcrypt, JWT httpOnly cookie) | Unauthorized access |
 | **Authorization** | RLS on every table | Data leakage between users |
@@ -1041,8 +1315,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...         # Public (safe for client, RLS protects)
 SUPABASE_SERVICE_ROLE_KEY=eyJ...             # Secret (server-only, bypasses RLS)
 
-# Claude API
+# Claude API (categorização + chat)
 ANTHROPIC_API_KEY=sk-ant-...                 # Secret (server-only)
+
+# OpenAI (Whisper audio transcription — Pro only)
+OPENAI_API_KEY=sk-...                        # Secret (server-only)
 
 # Asaas
 ASAAS_API_KEY=...                            # Secret (server-only)
@@ -1148,3 +1425,4 @@ interface Channel {
 | 2026-04-05 | 1.0 | Architecture document created based on PRD v1.2 | Aria (@architect) |
 | 2026-04-05 | 1.1 | Cache global de categorizacao movido de in-memory para tabela `category_cache` no Supabase. Documento aprovado. | Aria (@architect) |
 | 2026-04-05 | 1.2 | QA review fixes: import pipeline split sync/async (B1), external_id NOT NULL + SHA-256 for CSV (B2), subscription→profile trigger (M2), server-side premium check (M3), updated_at triggers (M4), AES-256 documented (M5), category check constraints (M6), normalize_description() function (m4), chat message save order (m6) | Quinn (@qa) |
+| 2026-04-06 | 1.3 | Atualização para PRD v1.4: (1) Planos free/premium → basic/pro com preços R$19,90/R$49,90; (2) profiles.plan CHECK renomeado, +audio_enabled column, ai_queries_today→ai_queries_this_month; (3) Migration 003_plan_restructure.sql; (4) Chat pipeline diferenciado Basic(Haiku+sem tools) vs Pro(Sonnet+function calling); (5) Seção 5.6 Function Calling com 5 tools, fluxo de validação, confirmação delete; (6) Seção 5.7 Audio Input com Whisper API, formatos, limites, custo; (7) /api/audio route; (8) ADR: +Vercel AI SDK, +Whisper; (9) plans.ts reescrito com Basic/Pro; (10) OPENAI_API_KEY nas env vars; (11) use-premium.ts → use-plan.ts | Aria (@architect) |

@@ -9,7 +9,10 @@ PostgreSQL gerenciado pelo Supabase. Sem ORM — SQL puro para migrations, Supab
 ```
 supabase/
 ├── migrations/                    # SQL migrations versionadas
-│   └── 001_initial_schema.sql     # Schema inicial (profiles, transactions, etc.)
+│   ├── 001_initial_schema.sql     # Schema inicial (profiles, transactions, etc.)
+│   ├── 002_unaccent_search.sql    # Full-text search sem acentos
+│   ├── 003_plan_restructure.sql   # Rename free/premium → basic/pro, +audio_enabled
+│   └── 004_budgets_goals.sql      # Tabelas budgets e goals (function calling Pro)
 ├── functions/                     # Supabase Edge Functions (Deno runtime)
 │   └── categorize-import/         # Async categorization após import
 │       └── index.ts
@@ -23,14 +26,16 @@ supabase/
 
 | Tabela | Propósito |
 |--------|-----------|
-| `profiles` | Extensão do auth.users — plano, trial, AI quota |
+| `profiles` | Extensão do auth.users — plan (`basic`\|`pro`), trial, AI quota mensal |
 | `bank_accounts` | Contas bancárias importadas pelo usuário |
 | `imports` | Histórico de uploads OFX/CSV |
 | `transactions` | Transações financeiras (core do produto) |
 | `category_dictionary` | Regras de categorização aprendidas por usuário |
 | `category_cache` | Cache global de categorização (cross-user) |
 | `chat_messages` | Histórico do chat com IA |
-| `subscriptions` | Controle de assinaturas Asaas |
+| `subscriptions` | Controle de assinaturas Asaas (billing_cycle: `monthly`\|`yearly`) |
+| `budgets` | Orçamentos mensais por categoria (Pro, function calling) |
+| `goals` | Objetivos financeiros com meta e prazo (Pro, function calling) |
 
 ---
 
@@ -129,13 +134,16 @@ const { data } = await supabase
 // Ou via query group — definir função SQL para agregação
 ```
 
-### Verificar quota de IA
+### Verificar quota de IA (mensal por plano)
 ```typescript
 const { data: profile } = await supabase
   .from('profiles')
-  .select('ai_queries_today, ai_queries_reset_at, plan, trial_ends_at')
+  .select('ai_queries_this_month, ai_queries_reset_at, plan, trial_ends_at, audio_enabled')
   .eq('id', userId)
   .single()
+
+// Limite mensal: Basic = 50, Pro = 200
+// Reset no primeiro dia do mês: ai_queries_reset_at < date_trunc('month', now())
 ```
 
 ---

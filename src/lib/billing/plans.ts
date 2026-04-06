@@ -1,0 +1,127 @@
+export const CATEGORIES = [
+  'alimentacao',
+  'delivery',
+  'transporte',
+  'moradia',
+  'saude',
+  'educacao',
+  'lazer',
+  'compras',
+  'assinaturas',
+  'transferencias',
+  'salario',
+  'investimentos',
+  'impostos',
+  'outros',
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+export const PLANS = {
+  basic_monthly: {
+    name: 'Basic Mensal',
+    price: 1990, // R$19,90 em centavos
+    asaasValue: 19.9,
+    billingCycle: 'MONTHLY' as const,
+    features: {
+      maxBankAccounts: 3,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 50,
+      aiModel: 'claude-haiku-4-5-20251001',
+      categoryComparison: true,
+      audioEnabled: false,
+      functionCalling: false,
+    },
+  },
+  basic_yearly: {
+    name: 'Basic Anual',
+    price: 19100, // R$191,00 (~2 meses grátis)
+    asaasValue: 191.0,
+    billingCycle: 'YEARLY' as const,
+    features: {
+      maxBankAccounts: 3,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 50,
+      aiModel: 'claude-haiku-4-5-20251001',
+      categoryComparison: true,
+      audioEnabled: false,
+      functionCalling: false,
+    },
+  },
+  pro_monthly: {
+    name: 'Pro Mensal',
+    price: 4990, // R$49,90 em centavos
+    asaasValue: 49.9,
+    billingCycle: 'MONTHLY' as const,
+    features: {
+      maxBankAccounts: Infinity,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 200,
+      aiModel: 'claude-sonnet-4-6',
+      categoryComparison: true,
+      audioEnabled: true,
+      functionCalling: true,
+    },
+  },
+  pro_yearly: {
+    name: 'Pro Anual',
+    price: 47900, // R$479,00 (~2 meses grátis)
+    asaasValue: 479.0,
+    billingCycle: 'YEARLY' as const,
+    features: {
+      maxBankAccounts: Infinity,
+      historyMonths: Infinity,
+      aiChat: true,
+      aiChatMonthly: 200,
+      aiModel: 'claude-sonnet-4-6',
+      categoryComparison: true,
+      audioEnabled: true,
+      functionCalling: true,
+    },
+  },
+} as const;
+
+export type PlanKey = keyof typeof PLANS;
+export type PlanFeatures = (typeof PLANS)[PlanKey]['features'];
+
+/** Planos que correspondem ao tier 'basic' no profiles.plan */
+export const BASIC_PLAN_KEYS: PlanKey[] = ['basic_monthly', 'basic_yearly'];
+/** Planos que correspondem ao tier 'pro' no profiles.plan */
+export const PRO_PLAN_KEYS: PlanKey[] = ['pro_monthly', 'pro_yearly'];
+
+/** Limites por tier de plano (para verificação server-side) */
+export const PLAN_LIMITS = {
+  basic: {
+    aiChatMonthly: 50,
+    maxBankAccounts: 3,
+    aiModel: 'claude-haiku-4-5-20251001',
+    audioEnabled: false,
+    functionCalling: false,
+  },
+  pro: {
+    aiChatMonthly: 200,
+    maxBankAccounts: Infinity,
+    aiModel: 'claude-sonnet-4-6',
+    audioEnabled: true,
+    functionCalling: true,
+  },
+} as const;
+
+export type PlanTier = keyof typeof PLAN_LIMITS;
+
+/**
+ * Retorna o tier efetivo considerando o trial.
+ * IMPORTANTE: use apenas no servidor (API routes) para decisões críticas.
+ * No cliente, use o hook usePlan() apenas para UX.
+ */
+export function getEffectiveTier(
+  plan: PlanTier,
+  trialEndsAt: string | null
+): PlanTier {
+  if (plan === 'pro') return 'pro';
+  if (trialEndsAt && new Date(trialEndsAt) > new Date()) return 'pro';
+  return 'basic';
+}
