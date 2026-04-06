@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from '@/components/logout-button';
+import { BottomNav } from '@/components/layout/bottom-nav';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -25,7 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <LogoutButton />
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      {/* pb-16 compensates bottom-nav height (AC8) */}
+      <main className="flex-1 pb-16">{children}</main>
+      <BottomNav />
     </div>
   );
 }
