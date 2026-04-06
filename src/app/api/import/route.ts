@@ -1,4 +1,5 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { parseOFX } from '@/lib/parsers/ofx-parser';
 import { parseCSV } from '@/lib/parsers/csv-parser';
 
@@ -237,21 +238,25 @@ export async function POST(request: Request) {
     .eq('id', bankAccountId);
 
   // ── Etapa 7: Invoke Edge Function (fire-and-forget) ─────────
-  // Use service client: anon SSR client may not pass Authorization correctly
-  // when calling functions.invoke() from an API route context.
+  // Use @supabase/supabase-js directly (NOT @supabase/ssr).
+  // The SSR client is cookie-based and does not set Authorization: Bearer <service-role-key>
+  // on functions.invoke() — the gateway rejects it with 401.
+  // The raw supabase-js client correctly forwards the service role key as Bearer token.
   console.log('[import] Etapa 7 invoking categorize-import — importId:', importId);
-  createServiceClient().then((serviceSupabase) => {
-    serviceSupabase.functions
-      .invoke('categorize-import', {
-        body: { importId, userId: user.id },
-      })
-      .then(({ data, error }) => {
-        console.log('[import] Etapa 7 Edge Function result:', JSON.stringify({ data, error }));
-      })
-      .catch((err: unknown) => {
-        console.error('[import] Etapa 7 Edge Function invoke failed:', err);
-      });
-  });
+  const invokeClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  invokeClient.functions
+    .invoke('categorize-import', {
+      body: { importId, userId: user.id },
+    })
+    .then(({ data, error }) => {
+      console.log('[import] Etapa 7 Edge Function result:', JSON.stringify({ data, error }));
+    })
+    .catch((err: unknown) => {
+      console.error('[import] Etapa 7 Edge Function invoke failed:', err);
+    });
 
   return Response.json({
     importId,
