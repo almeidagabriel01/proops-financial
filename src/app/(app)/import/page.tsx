@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { FileDropzone } from '@/components/import/file-dropzone';
 import { ImportProgress, type ImportStatus } from '@/components/import/import-progress';
@@ -13,6 +13,10 @@ const BANK_OPTIONS = [
   { value: 'Outro', label: 'Outro' },
 ];
 
+// Polling fallback: starts after this delay if Realtime hasn't fired
+const REALTIME_TIMEOUT_MS = 6000;
+const POLL_INTERVAL_MS = 3000;
+
 export default function ImportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [bankName, setBankName] = useState('Nubank');
@@ -23,9 +27,11 @@ export default function ImportPage() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const supabase = createClient();
+  // Stable client ref — prevents useEffect dependency churn on re-renders
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
-  // Subscribe to Realtime updates for the import record
+  // Realtime subscription for import status updates
   useEffect(() => {
     if (!importId) return;
 
@@ -40,23 +46,73 @@ export default function ImportPage() {
           filter: `id=eq.${importId}`,
         },
         (payload) => {
+          console.log('[import] Realtime event received:', payload.new);
           const newStatus = payload.new.status as ImportStatus;
           setImportStatus(newStatus);
           if (newStatus === 'completed') {
-            setTransactionCount(payload.new.transaction_count);
-            setDuplicatesSkipped(payload.new.duplicates_skipped);
+            setTransactionCount(payload.new.transaction_count as number);
+            setDuplicatesSkipped(payload.new.duplicates_skipped as number);
           }
           if (newStatus === 'failed') {
-            setErrorMessage(payload.new.error_message ?? 'Erro desconhecido');
+            setErrorMessage((payload.new.error_message as string) ?? 'Erro desconhecido');
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[import] Realtime channel status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [importId, supabase]);
+
+  // Polling fallback: if Realtime doesn't fire within REALTIME_TIMEOUT_MS,
+  // poll the DB every POLL_INTERVAL_MS until status leaves 'categorizing'
+  useEffect(() => {
+    if (importStatus !== 'categorizing' || !importId) return;
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      console.log('[import] Realtime timeout — starting polling fallback');
+      pollInterval = setInterval(async () => {
+        const { data, error } = await supabase
+          .from('imports')
+          .select('status, transaction_count, duplicates_skipped, error_message')
+          .eq('id', importId)
+          .single();
+
+        if (error) {
+          console.error('[import] Polling error:', error);
+          return;
+        }
+
+        if (!data || data.status === 'categorizing') return;
+
+        console.log('[import] Polling resolved status:', data.status);
+        const resolvedStatus = data.status as ImportStatus;
+        setImportStatus(resolvedStatus);
+
+        if (resolvedStatus === 'completed') {
+          setTransactionCount(data.transaction_count ?? undefined);
+          setDuplicatesSkipped(data.duplicates_skipped ?? undefined);
+        }
+        if (resolvedStatus === 'failed') {
+          setErrorMessage(data.error_message ?? 'Erro desconhecido');
+        }
+
+        if (pollInterval) clearInterval(pollInterval);
+      }, POLL_INTERVAL_MS);
+    };
+
+    const timeout = setTimeout(startPolling, REALTIME_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(timeout);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [importId, importStatus, supabase]);
 
   const handleImport = useCallback(async () => {
     if (!selectedFile) return;
