@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TransactionList } from '@/components/transactions/transaction-list';
+import { TransactionForm } from '@/components/transactions/transaction-form';
 import { useTransactions } from '@/hooks/use-transactions';
 import { getMonthBounds, getPrevMonthBounds } from '@/lib/utils/format';
 
@@ -120,6 +122,8 @@ export default function TransactionsPage() {
   const { transactions, isLoading, isLoadingMore, error, hasMore, loadMore, refresh } =
     useTransactions(filters);
 
+  const [formOpen, setFormOpen] = useState(false);
+
   return (
     <div className="flex flex-col">
       {/* Filter bar (AC2) */}
@@ -190,7 +194,7 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Transaction list (AC1, AC6, AC7) */}
+      {/* Transaction list */}
       <TransactionList
         transactions={transactions}
         isLoading={isLoading}
@@ -199,6 +203,23 @@ export default function TransactionsPage() {
         hasMore={hasMore}
         onLoadMore={loadMore}
         onRefresh={refresh}
+        onMutated={refresh}
+      />
+
+      {/* FAB — add transaction */}
+      <Button
+        size="lg"
+        className="fixed bottom-20 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg"
+        aria-label="Adicionar transação"
+        onClick={() => setFormOpen(true)}
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
+
+      <TransactionForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSuccess={refresh}
       />
     </div>
   );

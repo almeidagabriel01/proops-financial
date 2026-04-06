@@ -16,6 +16,7 @@ interface TransactionListProps {
   hasMore: boolean;
   onLoadMore: () => void;
   onRefresh: () => void;
+  onMutated?: () => void;
 }
 
 export function TransactionList({
@@ -26,6 +27,7 @@ export function TransactionList({
   hasMore,
   onLoadMore,
   onRefresh,
+  onMutated,
 }: TransactionListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -92,7 +94,7 @@ export function TransactionList({
 
       <div className="divide-y divide-border">
         {transactions.map((tx) => (
-          <TransactionItem key={tx.id} transaction={tx} />
+          <TransactionItem key={tx.id} transaction={tx} onMutated={onMutated} />
         ))}
       </div>
 

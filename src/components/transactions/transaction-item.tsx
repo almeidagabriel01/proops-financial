@@ -2,13 +2,16 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateRelative } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/hooks/use-transactions';
+import { TransactionActions } from '@/components/transactions/transaction-actions';
 
 interface TransactionItemProps {
   transaction: Transaction;
+  onMutated?: () => void;
 }
 
-export function TransactionItem({ transaction: tx }: TransactionItemProps) {
+export function TransactionItem({ transaction: tx, onMutated }: TransactionItemProps) {
   const isCredit = tx.type === 'credit';
+  const isManual = tx.import_id === null;
 
   return (
     <div className="flex min-h-[56px] items-center gap-3 px-4 py-3">
@@ -30,20 +33,29 @@ export function TransactionItem({ transaction: tx }: TransactionItemProps) {
           <Badge variant="outline" className="h-4 px-1.5 text-[10px] capitalize">
             {tx.category}
           </Badge>
+          {isManual && (
+            <span className="text-[10px] text-muted-foreground">Manual</span>
+          )}
         </div>
       </div>
 
-      <span
-        className={cn(
-          'shrink-0 text-sm font-semibold',
-          isCredit
-            ? 'text-green-600 dark:text-green-400'
-            : 'text-red-600 dark:text-red-400',
+      <div className="flex shrink-0 items-center gap-1">
+        <span
+          className={cn(
+            'text-sm font-semibold',
+            isCredit
+              ? 'text-green-600 dark:text-green-400'
+              : 'text-red-600 dark:text-red-400',
+          )}
+        >
+          {isCredit ? '+' : '-'}
+          {formatCurrency(Math.abs(tx.amount))}
+        </span>
+
+        {onMutated && (
+          <TransactionActions transaction={tx} onMutated={onMutated} />
         )}
-      >
-        {isCredit ? '+' : '-'}
-        {formatCurrency(Math.abs(tx.amount))}
-      </span>
+      </div>
     </div>
   );
 }
