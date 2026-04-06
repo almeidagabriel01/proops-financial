@@ -1,3 +1,43 @@
 {
-  "language": "portuguese"
+  "language": "portuguese",
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint:fix)",
+      "Bash(npm run typecheck)",
+      "Bash(npm test)",
+      "Bash(npm run test:*)",
+      "Bash(npx vitest*)",
+      "Bash(npx shadcn*)",
+      "Bash(supabase db push)",
+      "Bash(supabase db reset)",
+      "Bash(supabase migration*)",
+      "Bash(supabase gen types*)",
+      "Bash(supabase start)",
+      "Bash(supabase stop)",
+      "Bash(supabase status)",
+      "Bash(supabase functions*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(git stash*)",
+      "Bash(git merge*)",
+      "Bash(git fetch*)",
+      "Bash(git pull*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh issue*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)"
+    ]
+  }
 }

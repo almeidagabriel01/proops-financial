@@ -354,3 +354,87 @@ npm run trace -- workflow-name
 
 ---
 *Synkra AIOX Claude Code Configuration v2.0*
+
+---
+
+## Contexto do Projeto: App Financeiro Pessoal com IA
+
+### Produto
+SaaS financeiro pessoal mobile-first para o mercado brasileiro. Usuários importam extratos OFX/CSV, a IA categoriza as transações automaticamente, e um assistente conversacional responde perguntas em PT-BR sobre os dados reais do usuário.
+
+**Epics:** Foundation → IA Categorização → IA Chat + Premium → Polish & Launch
+
+### Stack Confirmada
+| Camada | Tecnologia | Decisão |
+|--------|-----------|---------|
+| Frontend | Next.js 14+ App Router + TypeScript | Web mobile-first, RSC por padrão |
+| Estilização | shadcn/ui + Tailwind CSS | Componentes copiados, sem lock-in |
+| Backend | Next.js API Routes + Supabase Edge Functions | Edge Functions para tasks >10s |
+| Banco | PostgreSQL via Supabase (sem ORM) | RLS como layer de segurança primária |
+| Auth | Supabase Auth (email/senha + Google OAuth) | JWT + refresh tokens automáticos |
+| Storage | Supabase Storage (OFX/CSV uploads) | RLS por usuário |
+| IA Categorização | Claude Haiku 4.5 | Batch, custo otimizado |
+| IA Chat | Claude Sonnet 4.6 | Streaming, PT-BR superior |
+| Pagamentos | Asaas | Boleto + Pix + Cartão, BR-first |
+| Deploy | Vercel (Hobby → Pro) | Single project, auto-deploy main |
+| Erros | Sentry | Frontend + API Routes |
+
+### Princípios de Código
+- **Supabase-first:** Frontend fala direto com Supabase para CRUD. API Routes apenas para lógica server-only (IA, parsing, webhooks)
+- **RLS como segurança:** Cada usuário só vê seus dados. Nunca vazar dados entre usuários
+- **Server Components por padrão:** Client Components apenas quando necessário (interatividade, hooks)
+- **Sem ORM:** Supabase JS Client direto. Tipagem via `supabase gen types typescript`
+- **Cost-conscious IA:** Haiku para batch, Sonnet apenas para chat interativo. Cache agressivo
+- **Absolute imports:** Usar `@/` prefix para todos os imports internos (`@/lib/`, `@/components/`)
+
+### Comandos de Desenvolvimento
+```bash
+npm run dev          # Start local (porta 3000)
+npm run build        # Build produção
+npm run typecheck    # Verifica tipos TypeScript
+npm run lint         # ESLint
+npm test             # Vitest unit tests
+npm run test:watch   # Vitest watch mode
+
+supabase start       # Start local Supabase
+supabase db push     # Aplicar migrations
+supabase gen types typescript --local > src/lib/supabase/types.ts
+```
+
+### Variáveis de Ambiente Críticas
+```
+NEXT_PUBLIC_SUPABASE_URL        # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY   # Anon key (público, RLS protege)
+SUPABASE_SERVICE_ROLE_KEY       # Service role (NUNCA expor no cliente)
+ANTHROPIC_API_KEY               # Claude API key
+ASAAS_API_KEY                   # Asaas payment gateway
+ASAAS_WEBHOOK_TOKEN             # Webhook validation token
+SENTRY_DSN                      # Error tracking
+```
+
+### Categorias de Transações (14 fixas)
+`alimentacao` | `delivery` | `transporte` | `moradia` | `saude` | `educacao` | `lazer` | `compras` | `assinaturas` | `transferencias` | `salario` | `investimentos` | `impostos` | `outros`
+
+### Contexto Brasileiro Importante
+- 85% dos usuários em Android — otimizar para dispositivos de entrada
+- Bancos suportados no MVP: Nubank, Itaú, Bradesco (CSV), mais qualquer OFX
+- SHA-256 para deduplicação de transações CSV: hash(date + amount + normalized_description)
+- Conformidade LGPD obrigatória desde o dia 1 (consentimento, direito de exclusão)
+- Gateway Asaas para pagamentos (não Stripe) — suporte nativo a Pix/boleto
+
+### Planos Free vs Premium
+| Feature | Free | Premium |
+|---------|------|---------|
+| Contas bancárias | 1 | Múltiplas |
+| Histórico | Mês atual | Ilimitado |
+| Categorização IA | Sim | Sim |
+| Dashboard | Completo | Completo + Comparativos |
+| Chat IA | Não | Sim (20 msgs/dia) |
+| Trial | 7 dias Premium automático | — |
+
+### Rate Limiting IA
+- Chat: 20 perguntas/dia por usuário Premium (verificação server-side obrigatória)
+- Categorização: batch (nunca por transação individual)
+- Cache: `category_cache` table — descrições idênticas reutilizam categoria sem chamar IA
+
+*App Financeiro Pessoal com IA — Project Context v1.0*
