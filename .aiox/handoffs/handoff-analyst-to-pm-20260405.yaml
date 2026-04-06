@@ -1,0 +1,28 @@
+handoff:
+  from_agent: "analyst"
+  to_agent: "pm"
+  story_context:
+    story_id: null
+    story_path: null
+    story_status: "pre-product"
+    current_task: "Market research completed, transitioning to product definition"
+    branch: null
+  decisions:
+    - "MVP SEM Open Finance API (custo R$2.500/mes inviavel) — usar importacao manual OFX/CSV"
+    - "Diferenciais core: Zero-Input + IA conversacional PT-BR + WhatsApp canal complementar"
+    - "Publico-alvo: PF classe B/C, organizacao e planejamento financeiro proativo"
+    - "Mobile-first obrigatorio (58% mobile-only no Brasil, 85% Android)"
+    - "Modelo SaaS: Free / Premium R$14,90-29,90/mes / Family R$49,90/mes"
+  files_modified:
+    - "docs/research/market-research-financas-pessoais-brasil.md"
+  blockers: []
+  next_action: "PM deve criar PRD com base na pesquisa de mercado e decisoes do usuario"
+  research_summary:
+    market_size: "Fintech BR ~US$40-50bi, 170M smartphones, 79% usam app bancario"
+    competitors: "18 mapeados — Nubank (113M), Mobills (8M+), onda WhatsApp-first (Magie, Jota AI)"
+    gaps: "Nenhum player entrega IA profunda + zero-input + planejamento proativo juntos"
+    open_finance: "Viavel via Pluggy (R$2.500/mes) mas adiado para pos-receita"
+    whatsapp: "99% usam no BR, API costs R$0,15-0,80/conversa, BSPs R$500-5k/mes"
+    risks: "Nubank como maior ameaca, custo LLM por usuario, dependencia Meta"
+    opportunity: "70M inadimplentes sem ferramenta, Classe C subatendida, planejamento proativo inexistente"
+  consumed: false

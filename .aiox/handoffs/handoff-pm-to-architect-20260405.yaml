@@ -1,0 +1,26 @@
+handoff:
+  from_agent: "pm"
+  to_agent: "architect"
+  story_context:
+    story_id: null
+    story_path: null
+    story_status: "prd-approved"
+    current_task: "PRD approved v1.2, ready for architecture design"
+    branch: null
+  decisions:
+    - "PRD aprovado com 4 epics, 13 stories"
+    - "Stack retificada: Next.js fullstack (web mobile-first) + Supabase + Claude API + Asaas"
+    - "SEM React Native — web app via browser, PWA opcional"
+    - "SEM App Store / Play Store no MVP"
+    - "SEM Railway — Supabase substitui (PostgreSQL + Auth + Storage + Realtime)"
+    - "Single project Next.js (nao monorepo com workspaces)"
+    - "Trial de 7 dias do Premium incluido"
+    - "Gateway de pagamento: Asaas (cartao, boleto, Pix)"
+    - "MVP sem Open Finance (OFX/CSV) — preparar abstracao DataSource para futuro"
+    - "MVP sem WhatsApp — preparar abstracao Channel para futuro"
+  files_modified:
+    - "docs/prd/prd.md"
+    - "docs/research/market-research-financas-pessoais-brasil.md"
+  blockers: []
+  next_action: "Architect deve criar documento de arquitetura tecnica baseado no PRD aprovado v1.2"
+  consumed: true

@@ -1,0 +1,23 @@
+handoff:
+  from_agent: "sm"
+  to_agent: "pending-approval"
+  story_context:
+    story_id: "Epic 1 (4 stories)"
+    story_path: "docs/stories/"
+    story_status: "draft"
+    current_task: "4 stories do Epic 1 criadas, aguardando aprovacao"
+    branch: null
+  decisions:
+    - "Story 1.1 (M/5pts): Bootstrap Next.js + Supabase + schema completo + shadcn/ui + PWA manifest"
+    - "Story 1.2 (M/5pts): Auth email/Google + RLS + middleware + hook useUser"
+    - "Story 1.3 (L/8pts): Two-phase import (sync API + async Edge Function Deno) + dedup SHA-256 + Realtime + parsers OFX/CSV"
+    - "Story 1.4 (M/5pts): Transaction list + dashboard basico + bottom nav + empty state + formatacao PT-BR"
+    - "Total Epic 1: 23 Story Points, estimativa 9-13 dias"
+  files_modified:
+    - "docs/stories/1.1.story.md"
+    - "docs/stories/1.2.story.md"
+    - "docs/stories/1.3.story.md"
+    - "docs/stories/1.4.story.md"
+  blockers: []
+  next_action: "Usuario aprova stories do Epic 1, depois criar stories do Epic 2"
+  consumed: false

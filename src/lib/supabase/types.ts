@@ -1,0 +1,290 @@
+// Database types — placeholder until generated via `supabase gen types typescript`
+// Run: npx supabase gen types --lang=typescript --project-id=wqvwbawhwypcsmzfbvpy > src/lib/supabase/types.ts
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export type Database = {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          display_name: string | null;
+          plan: 'free' | 'premium';
+          trial_ends_at: string | null;
+          asaas_customer_id: string | null;
+          ai_queries_today: number;
+          ai_queries_reset_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          display_name?: string | null;
+          plan?: 'free' | 'premium';
+          trial_ends_at?: string | null;
+          asaas_customer_id?: string | null;
+          ai_queries_today?: number;
+          ai_queries_reset_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          display_name?: string | null;
+          plan?: 'free' | 'premium';
+          trial_ends_at?: string | null;
+          asaas_customer_id?: string | null;
+          ai_queries_today?: number;
+          ai_queries_reset_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      bank_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_name: string;
+          account_label: string | null;
+          last_import_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_name: string;
+          account_label?: string | null;
+          last_import_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_name?: string;
+          account_label?: string | null;
+          last_import_at?: string | null;
+          created_at?: string;
+        };
+      };
+      imports: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_account_id: string;
+          file_name: string;
+          file_type: 'ofx' | 'csv';
+          storage_path: string;
+          transaction_count: number;
+          duplicates_skipped: number;
+          status: 'processing' | 'categorizing' | 'completed' | 'failed';
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_account_id: string;
+          file_name: string;
+          file_type: 'ofx' | 'csv';
+          storage_path: string;
+          transaction_count?: number;
+          duplicates_skipped?: number;
+          status?: 'processing' | 'categorizing' | 'completed' | 'failed';
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_account_id?: string;
+          file_name?: string;
+          file_type?: 'ofx' | 'csv';
+          storage_path?: string;
+          transaction_count?: number;
+          duplicates_skipped?: number;
+          status?: 'processing' | 'categorizing' | 'completed' | 'failed';
+          error_message?: string | null;
+          created_at?: string;
+        };
+      };
+      transactions: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_account_id: string;
+          import_id: string | null;
+          external_id: string;
+          date: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category: string;
+          category_source: 'pending' | 'ai' | 'user' | 'cache';
+          category_confidence: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_account_id: string;
+          import_id?: string | null;
+          external_id: string;
+          date: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category?: string;
+          category_source?: 'pending' | 'ai' | 'user' | 'cache';
+          category_confidence?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_account_id?: string;
+          import_id?: string | null;
+          external_id?: string;
+          date?: string;
+          description?: string;
+          amount?: number;
+          type?: 'credit' | 'debit';
+          category?: string;
+          category_source?: 'pending' | 'ai' | 'user' | 'cache';
+          category_confidence?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      category_dictionary: {
+        Row: {
+          id: string;
+          user_id: string;
+          description_pattern: string;
+          category: string;
+          usage_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          description_pattern: string;
+          category: string;
+          usage_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          description_pattern?: string;
+          category?: string;
+          usage_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      category_cache: {
+        Row: {
+          id: string;
+          description_normalized: string;
+          category: string;
+          confidence: number | null;
+          hit_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          description_normalized: string;
+          category: string;
+          confidence?: number | null;
+          hit_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          description_normalized?: string;
+          category?: string;
+          confidence?: number | null;
+          hit_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          role: 'user' | 'assistant';
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          role: 'user' | 'assistant';
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          role?: 'user' | 'assistant';
+          content?: string;
+          created_at?: string;
+        };
+      };
+      subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          asaas_subscription_id: string | null;
+          plan: 'monthly' | 'yearly';
+          status: 'active' | 'past_due' | 'canceled' | 'expired';
+          current_period_start: string | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          asaas_subscription_id?: string | null;
+          plan: 'monthly' | 'yearly';
+          status?: 'active' | 'past_due' | 'canceled' | 'expired';
+          current_period_start?: string | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          asaas_subscription_id?: string | null;
+          plan?: 'monthly' | 'yearly';
+          status?: 'active' | 'past_due' | 'canceled' | 'expired';
+          current_period_start?: string | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      normalize_description: {
+        Args: { raw: string };
+        Returns: string;
+      };
+    };
+    Enums: Record<string, never>;
+  };
+};
