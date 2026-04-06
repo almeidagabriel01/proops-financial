@@ -44,7 +44,14 @@ export function useTransactions(filters: TransactionFilters = {}) {
       if (filters.endDate) q = q.lte('date', filters.endDate);
       if (filters.type && filters.type !== 'all') q = q.eq('type', filters.type);
       if (filters.search?.trim()) {
-        q = q.ilike('description', `%${filters.search.trim()}%`);
+        // Use description_search (generated column: lower + unaccent) for accent-insensitive search.
+        // Normalize the search term client-side to match the stored format.
+        const normalized = filters.search
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        q = q.ilike('description_search', `%${normalized}%`);
       }
 
       return q;
