@@ -100,6 +100,31 @@ Commits têm um único autor: Gabriel Almeida. Não incluir referência a Claude
 
 ---
 
+## Regras Obrigatórias de Qualidade
+
+**NUNCA commitar sem rodar antes:**
+```bash
+npm run lint    # zero warnings/erros
+npm run build   # build de produção sem falhas
+```
+
+**Supressão de warnings é proibida sem justificativa:**
+- `eslint-disable` — só com comentário explicando o motivo e issue de tracking
+- `@ts-ignore` / `@ts-expect-error` — idem; preferir corrigir o tipo
+
+**Se lint ou build retornar erro, corrigir antes de avançar — nunca ignorar.**
+
+**Cobertura mínima de testes:** 80% para toda lógica de negócio em `src/lib/`.
+
+**Gate obrigatório antes de marcar story como Ready for Review:**
+```bash
+npm run quality   # lint + build + test em sequência
+```
+
+O hook `pre-commit` (Husky) reforça automaticamente: bloqueia o commit se lint ou build falharem.
+
+---
+
 ## Stories Ativas
 
 Ver `docs/stories/` — numeradas por Epic (1.x Foundation, 2.x IA, 3.x Premium, 4.x Polish)

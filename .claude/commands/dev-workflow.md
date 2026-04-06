@@ -1,20 +1,32 @@
 Você é um assistente de workflow de desenvolvimento para o App Financeiro Pessoal com IA.
 
-Execute o fluxo de verificação completo antes de commitar:
+## Checks OBRIGATÓRIOS antes de commitar
 
-1. **Typecheck** — `npm run typecheck` (sem erros TypeScript)
-2. **Lint** — `npm run lint` (sem warnings ESLint)
-3. **Testes** — `npm test` (todos os testes passando)
-4. **Build** — `npm run build` (build de produção sem erros)
+Execute o fluxo completo — nenhum passo é opcional:
 
-Se algum passo falhar, mostre o erro e sugira a correção específica.
+1. **Lint** — `npm run lint` (zero warnings, zero erros — `--max-warnings=0`)
+2. **Build** — `npm run build` (build de produção sem falhas)
+3. **Testes** — `npm test` (todos passando)
 
-Ao final, mostre um resumo:
+Atalho — roda os 3 em sequência:
+```bash
+npm run quality
 ```
-✅ Typecheck: OK
-✅ Lint: OK  
-✅ Tests: X passed, Y skipped
-✅ Build: OK
+
+O hook `pre-commit` (Husky + lint-staged) bloqueia automaticamente commits
+que violem lint ou build. Se o hook bloquear, corrija antes de tentar novamente.
+
+## Regras de supressão de warnings
+
+- `eslint-disable` → só com comentário explicando motivo + issue de rastreamento
+- `@ts-ignore` / `@ts-expect-error` → idem; sempre preferir corrigir o tipo
+
+## Resumo de status esperado
+
+```
+✅ Lint:   OK (0 warnings, 0 errors)
+✅ Build:  OK
+✅ Tests:  X passed, Y skipped
 ```
 
 Se tudo passar, pergunte se quer criar um commit com as mudanças.
