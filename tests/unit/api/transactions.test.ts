@@ -31,7 +31,7 @@ describe('Transaction API — validation logic', () => {
 
     it('credit amounts are stored positive', () => {
       const amount = 5000;
-      const type = 'credit';
+      const type: string = 'credit';
       const signed = type === 'debit' ? -Math.abs(amount) : Math.abs(amount);
       expect(signed).toBe(5000);
     });
