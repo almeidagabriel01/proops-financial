@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const AUTH_ONLY_ROUTES = ['/login', '/signup'];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -23,15 +25,24 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  // IMPORTANT: Use getUser() not getSession() — getUser() validates JWT server-side
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { pathname } = request.nextUrl;
+
+  // Redirect authenticated users away from login/signup → dashboard
+  if (user && AUTH_ONLY_ROUTES.includes(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
+  }
+
   // Redirect unauthenticated users to login (except public routes)
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/signup') &&
+    !AUTH_ONLY_ROUTES.includes(pathname) &&
     !request.nextUrl.pathname.startsWith('/callback') &&
     !request.nextUrl.pathname.startsWith('/api/health') &&
     !request.nextUrl.pathname.startsWith('/api/webhook') &&
