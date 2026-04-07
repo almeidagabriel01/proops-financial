@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,9 @@ import { TransactionList } from '@/components/transactions/transaction-list';
 import { TransactionForm } from '@/components/transactions/transaction-form';
 import { useTransactions } from '@/hooks/use-transactions';
 import { getMonthBounds, getPrevMonthBounds } from '@/lib/utils/format';
+import { CATEGORIES } from '@/lib/billing/plans';
+import { CATEGORY_CONFIG } from '@/lib/utils/categories';
+import type { Category } from '@/lib/billing/plans';
 
 type PeriodKey = 'current' | 'previous' | 'custom';
 type TypeFilter = 'all' | 'credit' | 'debit';
@@ -49,6 +52,7 @@ export default function TransactionsPage() {
   const initialSearch = searchParams.get('search') ?? '';
   const initialCustomStart = searchParams.get('start') ?? '';
   const initialCustomEnd = searchParams.get('end') ?? '';
+  const initialCategory = searchParams.get('category') ?? '';
 
   const [period, setPeriod] = useState<PeriodKey>(initialPeriod);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialType);
@@ -56,6 +60,7 @@ export default function TransactionsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [customStart, setCustomStart] = useState(initialCustomStart);
   const [customEnd, setCustomEnd] = useState(initialCustomEnd);
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Debounce search input (AC3)
@@ -67,15 +72,16 @@ export default function TransactionsPage() {
     return () => clearTimeout(debounceRef.current);
   }, [searchInput]);
 
-  // Sync filters to URL search params (AC2)
+  // Sync filters to URL search params
   const syncToUrl = useCallback(
-    (p: PeriodKey, t: TypeFilter, s: string, cs: string, ce: string) => {
+    (p: PeriodKey, t: TypeFilter, s: string, cs: string, ce: string, cat: string) => {
       const params = new URLSearchParams();
       if (p !== 'current') params.set('period', p);
       if (t !== 'all') params.set('type', t);
       if (s) params.set('search', s);
       if (p === 'custom' && cs) params.set('start', cs);
       if (p === 'custom' && ce) params.set('end', ce);
+      if (cat) params.set('category', cat);
       router.replace(`/transactions${params.size ? '?' + params.toString() : ''}`, {
         scroll: false,
       });
@@ -86,23 +92,29 @@ export default function TransactionsPage() {
   function handlePeriodChange(value: PeriodKey | null) {
     if (!value) return;
     setPeriod(value);
-    syncToUrl(value, typeFilter, debouncedSearch, customStart, customEnd);
+    syncToUrl(value, typeFilter, debouncedSearch, customStart, customEnd, categoryFilter);
   }
 
   function handleTypeChange(value: TypeFilter | null) {
     if (!value) return;
     setTypeFilter(value);
-    syncToUrl(period, value, debouncedSearch, customStart, customEnd);
+    syncToUrl(period, value, debouncedSearch, customStart, customEnd, categoryFilter);
   }
 
   function handleCustomStartChange(value: string) {
     setCustomStart(value);
-    syncToUrl(period, typeFilter, debouncedSearch, value, customEnd);
+    syncToUrl(period, typeFilter, debouncedSearch, value, customEnd, categoryFilter);
   }
 
   function handleCustomEndChange(value: string) {
     setCustomEnd(value);
-    syncToUrl(period, typeFilter, debouncedSearch, customStart, value);
+    syncToUrl(period, typeFilter, debouncedSearch, customStart, value, categoryFilter);
+  }
+
+  function handleCategoryChange(value: string | null) {
+    const cat = !value || value === 'all' ? '' : value;
+    setCategoryFilter(cat);
+    syncToUrl(period, typeFilter, debouncedSearch, customStart, customEnd, cat);
   }
 
   // Filters object for the hook
@@ -115,8 +127,9 @@ export default function TransactionsPage() {
       ...periodDates,
       type: typeFilter,
       search: debouncedSearch,
+      category: categoryFilter || undefined,
     }),
-    [periodDates, typeFilter, debouncedSearch],
+    [periodDates, typeFilter, debouncedSearch, categoryFilter],
   );
 
   const { transactions, isLoading, isLoadingMore, error, hasMore, loadMore, refresh } =
@@ -164,6 +177,37 @@ export default function TransactionsPage() {
                 <SelectItem value="debit">Despesas</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Category filter */}
+          <div className="flex items-center gap-2">
+            <Select
+              value={categoryFilter || 'all'}
+              onValueChange={handleCategoryChange}
+            >
+              <SelectTrigger className="h-9 flex-1 text-xs">
+                <SelectValue placeholder="Por categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {CATEGORY_CONFIG[cat as Category].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {categoryFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0 shrink-0"
+                aria-label="Limpar filtro de categoria"
+                onClick={() => handleCategoryChange('all')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           {/* Custom date range (AC2) — shown only when period === 'custom' */}

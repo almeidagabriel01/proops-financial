@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import type { Transaction } from '@/hooks/use-transactions';
 import { TransactionActions } from '@/components/transactions/transaction-actions';
 import { TransactionDetail } from '@/components/transactions/transaction-detail';
+import { CATEGORY_CONFIG } from '@/lib/utils/categories';
+import type { Category } from '@/lib/billing/plans';
 
 interface TransactionItemProps {
   transaction: Transaction;
@@ -17,6 +19,7 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
   const [detailOpen, setDetailOpen] = useState(false);
   const [localCategory, setLocalCategory] = useState(tx.category ?? 'outros');
   const isCredit = tx.type === 'credit';
+  const catConfig = CATEGORY_CONFIG[localCategory as Category] ?? CATEGORY_CONFIG.outros;
   const isManual = tx.import_id === null;
 
   function handleCategoryUpdated(transactionId: string, newCategory: string) {
@@ -50,8 +53,12 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
             <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
             <div className="mt-0.5 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
-              <Badge variant="outline" className="h-4 px-1.5 text-[10px] capitalize">
-                {localCategory}
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[10px]"
+                style={{ borderColor: catConfig.color, color: catConfig.color }}
+              >
+                {catConfig.label}
               </Badge>
               {isManual && (
                 <span className="text-[10px] text-muted-foreground">Manual</span>

@@ -11,6 +11,7 @@ export interface TransactionFilters {
   endDate?: string;
   type?: 'all' | 'credit' | 'debit';
   search?: string;
+  category?: string;
 }
 
 export interface TransactionSummary {
@@ -53,11 +54,12 @@ export function useTransactions(filters: TransactionFilters = {}) {
           .replace(/[\u0300-\u036f]/g, '');
         q = q.ilike('description_search', `%${normalized}%`);
       }
+      if (filters.category?.trim()) q = q.eq('category', filters.category);
 
       return q;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters.startDate, filters.endDate, filters.type, filters.search],
+    [filters.startDate, filters.endDate, filters.type, filters.search, filters.category],
   );
 
   const load = useCallback(async () => {
