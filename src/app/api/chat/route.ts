@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 import { buildFinancialContext, checkAndResetRateLimit } from '@/lib/ai/chat';
 import { buildSystemPrompt } from '@/lib/ai/prompts/chat-system';
 import { isWithinGracePeriod } from '@/lib/billing/webhook-handler';
+import { makeProTools } from '@/lib/ai/tools';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -79,11 +80,15 @@ export async function POST(req: Request) {
     return createUIMessageStreamResponse({ stream });
   }
 
+  const supabaseAdmin = await createServiceClient();
+  const tools = tier === 'pro' ? makeProTools(user.id, supabaseAdmin) : undefined;
+
   const modelMessages = await convertToModelMessages(messages);
   const result = streamText({
     model: anthropic(model),
     system: systemPrompt,
     messages: modelMessages,
+    tools,
     maxOutputTokens: 1024,
   });
 

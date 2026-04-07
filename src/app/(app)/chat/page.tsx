@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ChatPage() {
   const { user, profile } = useUser();
-  const { aiMonthlyLimit } = usePlan();
+  const { aiMonthlyLimit, canUseAudio } = usePlan();
   const { initialMessages, historyLoading, saveMessage } = useChatHistory(user?.id ?? null);
   const [input, setInput] = useState('');
 
@@ -77,6 +77,7 @@ export default function ChatPage() {
         queriesUsed={queriesUsed}
         queriesLimit={aiMonthlyLimit}
         error={error}
+        canUseAudio={canUseAudio}
       />
     </div>
   );

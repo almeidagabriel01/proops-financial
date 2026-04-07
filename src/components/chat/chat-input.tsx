@@ -4,6 +4,7 @@ import { useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { SendHorizonal } from 'lucide-react';
 import Link from 'next/link';
+import { AudioRecorder } from '@/components/chat/audio-recorder';
 
 interface ChatInputProps {
   value: string;
@@ -13,6 +14,7 @@ interface ChatInputProps {
   queriesUsed: number;
   queriesLimit: number;
   error?: Error;
+  canUseAudio?: boolean;
 }
 
 export function ChatInput({
@@ -23,6 +25,7 @@ export function ChatInput({
   queriesUsed,
   queriesLimit,
   error,
+  canUseAudio = false,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queriesLeft = Math.max(0, queriesLimit - queriesUsed);
@@ -73,6 +76,12 @@ export function ChatInput({
       </p>
 
       <form onSubmit={onSubmit} className="flex items-end gap-2">
+        {canUseAudio && (
+          <AudioRecorder
+            onTranscript={(text) => onChange(value ? `${value} ${text}` : text)}
+            disabled={isLoading || isExhausted}
+          />
+        )}
         <textarea
           ref={textareaRef}
           rows={1}
