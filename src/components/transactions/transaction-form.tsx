@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ import {
 import { CATEGORIES } from '@/lib/billing/plans';
 import type { Category } from '@/lib/billing/plans';
 import type { Transaction } from '@/hooks/use-transactions';
+import { createClient } from '@/lib/supabase/client';
 
 const CATEGORY_LABELS: Record<Category, string> = {
   alimentacao: 'Alimentação',
@@ -32,12 +34,19 @@ const CATEGORY_LABELS: Record<Category, string> = {
   outros: 'Outros',
 };
 
+interface BankAccount {
+  id: string;
+  bank_name: string;
+  account_label: string | null;
+}
+
 interface TransactionFormValues {
   date: string;
   description: string;
   amount: string;
   type: 'credit' | 'debit';
   category: Category;
+  bank_account_id: string; // 'manual' = let server create/reuse
 }
 
 interface TransactionFormErrors {
@@ -55,6 +64,8 @@ interface TransactionFormProps {
   transaction?: Transaction;
 }
 
+const DATE_WARN_YEARS = 10;
+
 function todayISO(): string {
   return new Date().toISOString().split('T')[0];
 }
@@ -63,8 +74,22 @@ function parseAmountDisplay(tx: Transaction): string {
   return Math.abs(tx.amount).toFixed(2).replace('.', ',');
 }
 
+function getDateWarning(dateStr: string): string | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffYears = (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+  if (diffYears < -DATE_WARN_YEARS) return `Data muito antiga (mais de ${DATE_WARN_YEARS} anos no passado).`;
+  if (diffYears > DATE_WARN_YEARS) return `Data muito futura (mais de ${DATE_WARN_YEARS} anos à frente).`;
+  return null;
+}
+
 export function TransactionForm({ open, onClose, onSuccess, transaction }: TransactionFormProps) {
   const isEdit = !!transaction;
+  const supabase = createClient();
+
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
 
   const [values, setValues] = useState<TransactionFormValues>(() => ({
     date: transaction?.date ?? todayISO(),
@@ -72,10 +97,42 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     amount: transaction ? parseAmountDisplay(transaction) : '',
     type: transaction?.type ?? 'debit',
     category: (transaction?.category as Category) ?? 'outros',
-  }));
+    bank_account_id: transaction?.bank_account_id ?? 'manual',
+  } satisfies TransactionFormValues));
   const [errors, setErrors] = useState<TransactionFormErrors>({});
+  const [dateWarning, setDateWarning] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Load user's bank accounts when the sheet opens
+  useEffect(() => {
+    if (!open) return;
+
+    supabase
+      .from('bank_accounts')
+      .select('id, bank_name, account_label')
+      .order('bank_name', { ascending: true })
+      .then(({ data }) => {
+        setAccounts(data ?? []);
+      });
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset form state when the sheet opens/closes or transaction changes
+  useEffect(() => {
+    if (open) {
+      setValues({
+        date: transaction?.date ?? todayISO(),
+        description: transaction?.description ?? '',
+        amount: transaction ? parseAmountDisplay(transaction) : '',
+        type: transaction?.type ?? 'debit',
+        category: (transaction?.category as Category) ?? 'outros',
+        bank_account_id: transaction?.bank_account_id ?? 'manual',
+      });
+      setErrors({});
+      setDateWarning(null);
+      setServerError(null);
+    }
+  }, [open, transaction]);
 
   function validate(): boolean {
     const newErrors: TransactionFormErrors = {};
@@ -105,6 +162,8 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     return Object.keys(newErrors).length === 0;
   }
 
+  const hasErrors = Object.keys(errors).some((k) => !!errors[k as keyof TransactionFormErrors]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
@@ -113,13 +172,18 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     setServerError(null);
 
     const amount = parseFloat(values.amount.replace(',', '.'));
-    const body = {
+    const body: Record<string, unknown> = {
       date: values.date,
       description: values.description.trim(),
       amount,
       type: values.type,
       category: values.category,
     };
+
+    // Only send bank_account_id when user explicitly selected one (not 'manual')
+    if (!isEdit && values.bank_account_id !== 'manual') {
+      body.bank_account_id = values.bank_account_id;
+    }
 
     try {
       const url = isEdit ? `/api/transactions/${transaction!.id}` : '/api/transactions';
@@ -137,6 +201,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         return;
       }
 
+      toast.success(isEdit ? 'Transação atualizada' : 'Transação adicionada com sucesso');
       onSuccess();
       onClose();
     } catch {
@@ -148,8 +213,6 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
 
   function handleClose() {
     if (isSaving) return;
-    setErrors({});
-    setServerError(null);
     onClose();
   }
 
@@ -258,6 +321,32 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             )}
           </div>
 
+          {/* Conta — apenas no modo criar */}
+          {!isEdit && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
+                Conta <span className="text-muted-foreground">(opcional)</span>
+              </label>
+              <Select
+                value={values.bank_account_id}
+                onValueChange={(v) => setValues((prev) => ({ ...prev, bank_account_id: v ?? 'manual' }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual (criada automaticamente)</SelectItem>
+                  {accounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.bank_name}
+                      {acc.account_label ? ` — ${acc.account_label}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Data */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
@@ -267,7 +356,9 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
               type="date"
               value={values.date}
               onChange={(e) => {
-                setValues((prev) => ({ ...prev, date: e.target.value }));
+                const v = e.target.value;
+                setValues((prev) => ({ ...prev, date: v }));
+                setDateWarning(getDateWarning(v));
                 if (errors.date) setErrors((prev) => ({ ...prev, date: undefined }));
               }}
               className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
@@ -276,6 +367,9 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             />
             {errors.date && (
               <p className="mt-1 text-xs text-destructive">{errors.date}</p>
+            )}
+            {!errors.date && dateWarning && (
+              <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">{dateWarning}</p>
             )}
           </div>
 
@@ -289,7 +383,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             type="submit"
             className="w-full"
             size="lg"
-            disabled={isSaving}
+            disabled={isSaving || hasErrors}
           >
             {isSaving ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar transação'}
           </Button>

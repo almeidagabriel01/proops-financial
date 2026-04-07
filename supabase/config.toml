@@ -403,4 +403,8 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
 [functions.categorize-import]
+# verify_jwt = false necessário pois categorize-import é invocada server-to-server
+# via service role key (src/app/api/import/route.ts), não por JWT de usuário final.
+# O SSR client (@supabase/ssr) não injeta Bearer token em functions.invoke(),
+# portanto o gateway recusaria a chamada se JWT verification estivesse habilitado.
 verify_jwt = false

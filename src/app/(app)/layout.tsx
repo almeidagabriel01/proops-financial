@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { Toaster } from 'sonner';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from '@/components/logout-button';
 import { BottomNav } from '@/components/layout/bottom-nav';
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* pb-16 compensates bottom-nav height (AC8) */}
       <main className="flex-1 pb-16">{children}</main>
       <BottomNav />
+      <Toaster position="bottom-center" richColors />
     </div>
   );
 }

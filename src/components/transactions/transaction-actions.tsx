@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TransactionForm } from '@/components/transactions/transaction-form';
@@ -27,6 +28,7 @@ export function TransactionActions({ transaction, onMutated }: TransactionAction
       throw new Error(data.error ?? 'Erro ao excluir');
     }
 
+    toast.success('Transação excluída');
     onMutated();
     setDeleteOpen(false);
   }

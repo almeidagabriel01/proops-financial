@@ -5,6 +5,21 @@ import { parseCSV } from '@/lib/parsers/csv-parser';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
+// Lazy singleton for fire-and-forget Edge Function invocation.
+// Uses @supabase/supabase-js (not @supabase/ssr): the SSR client is cookie-based
+// and does not inject Authorization: Bearer <service-role-key> in functions.invoke().
+// Lazy to avoid accessing env vars at module load time (breaks Next.js static build).
+let _invokeClient: ReturnType<typeof createSupabaseClient> | null = null;
+function getInvokeClient() {
+  if (!_invokeClient) {
+    _invokeClient = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+  }
+  return _invokeClient;
+}
+
 export async function POST(request: Request) {
   // ── Etapa 1: Validação de auth ──────────────────────────────
   const supabase = await createClient();
@@ -238,16 +253,8 @@ export async function POST(request: Request) {
     .eq('id', bankAccountId);
 
   // ── Etapa 7: Invoke Edge Function (fire-and-forget) ─────────
-  // Use @supabase/supabase-js directly (NOT @supabase/ssr).
-  // The SSR client is cookie-based and does not set Authorization: Bearer <service-role-key>
-  // on functions.invoke() — the gateway rejects it with 401.
-  // The raw supabase-js client correctly forwards the service role key as Bearer token.
   console.log('[import] Etapa 7 invoking categorize-import — importId:', importId);
-  const invokeClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  invokeClient.functions
+  getInvokeClient().functions
     .invoke('categorize-import', {
       body: { importId, userId: user.id },
     })
