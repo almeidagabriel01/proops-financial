@@ -30,6 +30,7 @@ function ProfileTab() {
 
 function PlanTab() {
   const { isPro, isBasic, inTrial, trialDaysLeft, aiMonthlyLimit, maxBankAccounts } = usePlan();
+  const { profile } = useUser();
   const router = useRouter();
 
   const planLabel = isPro ? 'Pro' : 'Basic';
@@ -53,9 +54,20 @@ function PlanTab() {
         </div>
 
         {inTrial && (
-          <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
-            Período de teste Pro — {trialDaysLeft} {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}
-          </p>
+          <div className="mt-3">
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Período de teste Pro — {trialDaysLeft} {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}
+            </p>
+            {profile?.trial_ends_at && (
+              <p className="text-xs text-muted-foreground">
+                Expira em{' '}
+                {new Date(profile.trial_ends_at).toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: 'long',
+                })}
+              </p>
+            )}
+          </div>
         )}
       </div>
 

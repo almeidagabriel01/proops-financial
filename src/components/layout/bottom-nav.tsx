@@ -10,7 +10,7 @@ const tabs = [
   { href: '/transactions', icon: CreditCard, label: 'Transações' },
   { href: '/import', icon: Plus, label: 'Importar', highlight: true },
   { href: '/chat', icon: MessageCircle, label: 'Chat', disabled: true },
-  { href: '/settings', icon: Settings, label: 'Config', disabled: true },
+  { href: '/settings', icon: Settings, label: 'Config' },
 ];
 
 export function BottomNav() {
