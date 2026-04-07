@@ -25,7 +25,8 @@ export interface AsaasSubscription {
 export interface CreateCustomerInput {
   name: string;
   email: string;
-  cpfCnpj: string;
+  // TODO: collect CPF/CNPJ via onboarding form before production launch (required by Asaas for real payments)
+  cpfCnpj?: string;
 }
 
 export interface CreateSubscriptionInput {

@@ -1,48 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   handleAsaasWebhook,
   isWithinGracePeriod,
   type AsaasWebhookEvent,
 } from '@/lib/billing/webhook-handler';
 
-// Minimal Supabase mock
-function makeSupabase(updateError: { message: string } | null = null) {
-  const updateFn = vi.fn().mockResolvedValue({ error: updateError });
-  const eqStatus = vi.fn().mockReturnValue({ error: updateError, then: (r: (v: { error: typeof updateError }) => void) => r({ error: updateError }) });
-
-  const chain = {
-    update: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: updateError }),
-    }),
-  };
-
-  return {
-    from: vi.fn().mockReturnValue(chain),
-    _chain: chain,
-    _updateFn: updateFn,
-    _eqStatus: eqStatus,
-  };
-}
-
-// Helper to call and capture the update chain
-function makeSupabaseCapture() {
+// Helper to call and capture the update chain (supports .select('id') returning rows)
+function makeSupabaseCapture(rowCount = 1) {
   const updateArgs: Record<string, unknown>[] = [];
-  let eqArgs: string[] = [];
+  const fakeRows = rowCount > 0 ? Array.from({ length: rowCount }, (_, i) => ({ id: `row_${i}` })) : [];
 
   const supabase = {
     from: vi.fn().mockReturnValue({
       update: vi.fn().mockImplementation((args: Record<string, unknown>) => {
         updateArgs.push(args);
         return {
-          eq: vi.fn().mockImplementation((...a: string[]) => {
-            eqArgs = a;
-            return Promise.resolve({ error: null });
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockResolvedValue({ error: null, data: fakeRows }),
           }),
         };
       }),
     }),
     _getUpdateArgs: () => updateArgs,
-    _getEqArgs: () => eqArgs,
   };
 
   return supabase;
@@ -81,8 +60,30 @@ describe('handleAsaasWebhook', () => {
     await handleAsaasWebhook(event, supabase as never);
 
     expect(supabase.from).toHaveBeenCalledWith('subscriptions');
-    const updateCall = (supabase.from('subscriptions').update as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(updateCall.status).toBe('active');
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    expect(updateMock.mock.calls[0][0].status).toBe('active');
+  });
+
+  it('PAYMENT_CONFIRMED saves period dates from payment payload', async () => {
+    const supabase = makeSupabaseCapture();
+    const event: AsaasWebhookEvent = {
+      event: 'PAYMENT_CONFIRMED',
+      payment: {
+        id: 'pay_1',
+        subscription: 'sub_123',
+        customer: 'cus_abc',
+        status: 'CONFIRMED',
+        dateCreated: '2026-04-01',
+        dueDate: '2026-05-01',
+      },
+    };
+
+    await handleAsaasWebhook(event, supabase as never);
+
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    const payload = updateMock.mock.calls[0][0];
+    expect(payload.current_period_start).toBe('2026-04-01');
+    expect(payload.current_period_end).toBe('2026-05-01');
   });
 
   it('PAYMENT_RECEIVED also sets status active', async () => {
@@ -94,8 +95,8 @@ describe('handleAsaasWebhook', () => {
 
     await handleAsaasWebhook(event, supabase as never);
 
-    const updateCall = (supabase.from('subscriptions').update as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(updateCall.status).toBe('active');
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    expect(updateMock.mock.calls[0][0].status).toBe('active');
   });
 
   it('PAYMENT_OVERDUE sets status past_due (grace period)', async () => {
@@ -107,8 +108,8 @@ describe('handleAsaasWebhook', () => {
 
     await handleAsaasWebhook(event, supabase as never);
 
-    const updateCall = (supabase.from('subscriptions').update as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(updateCall.status).toBe('past_due');
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    expect(updateMock.mock.calls[0][0].status).toBe('past_due');
   });
 
   it('SUBSCRIPTION_CANCELED sets status canceled', async () => {
@@ -120,8 +121,8 @@ describe('handleAsaasWebhook', () => {
 
     await handleAsaasWebhook(event, supabase as never);
 
-    const updateCall = (supabase.from('subscriptions').update as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(updateCall.status).toBe('canceled');
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    expect(updateMock.mock.calls[0][0].status).toBe('canceled');
   });
 
   it('PAYMENT_DELETED also sets status canceled', async () => {
@@ -133,8 +134,22 @@ describe('handleAsaasWebhook', () => {
 
     await handleAsaasWebhook(event, supabase as never);
 
-    const updateCall = (supabase.from('subscriptions').update as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(updateCall.status).toBe('canceled');
+    const updateMock = supabase.from('subscriptions').update as ReturnType<typeof vi.fn>;
+    expect(updateMock.mock.calls[0][0].status).toBe('canceled');
+  });
+
+  it('warns when no subscription found (count=0)', async () => {
+    const supabase = makeSupabaseCapture(0); // count=0 triggers warning
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const event: AsaasWebhookEvent = {
+      event: 'PAYMENT_CONFIRMED',
+      subscription: { id: 'sub_ghost', customer: 'cus_abc', status: 'ACTIVE' },
+    };
+
+    await handleAsaasWebhook(event, supabase as never);
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('sub_ghost'));
+    warnSpy.mockRestore();
   });
 
   it('ignores event with no subscription reference', async () => {

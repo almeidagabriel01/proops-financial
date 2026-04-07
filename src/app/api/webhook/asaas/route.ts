@@ -1,3 +1,4 @@
+import { timingSafeEqual, createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { handleAsaasWebhook, type AsaasWebhookEvent } from '@/lib/billing/webhook-handler';
@@ -7,7 +8,12 @@ import { handleAsaasWebhook, type AsaasWebhookEvent } from '@/lib/billing/webhoo
 // Asaas retries if response is not 2xx — always return 200 when token is valid
 export async function POST(req: Request) {
   const token = req.headers.get('asaas-access-token');
-  if (!token || token !== process.env.ASAAS_WEBHOOK_TOKEN) {
+  const expected = process.env.ASAAS_WEBHOOK_TOKEN;
+  // Timing-safe comparison via SHA-256 hashing — prevents length-dependent timing leaks
+  if (!token || !expected || !timingSafeEqual(
+    createHash('sha256').update(token).digest(),
+    createHash('sha256').update(expected).digest(),
+  )) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 

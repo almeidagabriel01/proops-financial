@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePlan } from '@/hooks/use-plan';
 import { useUser } from '@/hooks/use-user';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,23 @@ function PlanTab() {
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !isPro || inTrial) return;
+    const supabase = createClient();
+    supabase
+      .from('subscriptions')
+      .select('current_period_end')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.current_period_end) setCurrentPeriodEnd(data.current_period_end as string);
+      });
+  }, [user, isPro, inTrial]);
 
   const planLabel = isPro ? 'Pro' : 'Basic';
   const planPrice = isPro ? 'R$49,90/mês' : 'R$19,90/mês';
@@ -174,6 +191,18 @@ function PlanTab() {
       {isPro && !inTrial && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="mb-3 text-sm font-semibold text-foreground">Gerenciar assinatura</p>
+          {currentPeriodEnd && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              Próximo vencimento:{' '}
+              <span className="font-medium text-foreground">
+                {new Date(currentPeriodEnd + 'T12:00:00').toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            </p>
+          )}
           {!cancelConfirm ? (
             <Button
               variant="outline"

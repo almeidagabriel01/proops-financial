@@ -15,6 +15,8 @@ export interface AsaasWebhookEvent {
     subscription?: string; // asaas_subscription_id
     customer: string;      // asaas_customer_id
     status: string;
+    dueDate?: string;      // YYYY-MM-DD — end of billing period (for PAYMENT_CONFIRMED)
+    dateCreated?: string;  // YYYY-MM-DD — start of billing period
   };
   subscription?: {
     id: string;
@@ -48,39 +50,53 @@ export async function handleAsaasWebhook(
   switch (event.event) {
     case 'PAYMENT_CONFIRMED':
     case 'PAYMENT_RECEIVED': {
-      await supabase
+      const { data: confirmedRows } = await supabase
         .from('subscriptions')
         .update({
           status: 'active',
           updated_at: new Date().toISOString(),
+          ...(event.payment?.dateCreated && { current_period_start: event.payment.dateCreated }),
+          ...(event.payment?.dueDate && { current_period_end: event.payment.dueDate }),
         })
-        .eq('asaas_subscription_id', asaasSubscriptionId);
+        .eq('asaas_subscription_id', asaasSubscriptionId)
+        .select('id');
+      if (!confirmedRows?.length) {
+        console.warn(`[webhook] PAYMENT_CONFIRMED: no subscription found for ${asaasSubscriptionId}`);
+      }
       // Trigger sync_plan_from_subscription fires automatically on update → sets profiles.plan='pro'
       break;
     }
 
     case 'PAYMENT_OVERDUE': {
       // Mark as past_due — grace period logic applied in API routes
-      await supabase
+      const { data: overdueRows } = await supabase
         .from('subscriptions')
         .update({
           status: 'past_due',
           updated_at: new Date().toISOString(),
         })
-        .eq('asaas_subscription_id', asaasSubscriptionId);
+        .eq('asaas_subscription_id', asaasSubscriptionId)
+        .select('id');
+      if (!overdueRows?.length) {
+        console.warn(`[webhook] PAYMENT_OVERDUE: no subscription found for ${asaasSubscriptionId}`);
+      }
       // Trigger does NOT revoke on past_due — grace period maintained
       break;
     }
 
     case 'SUBSCRIPTION_CANCELED':
     case 'PAYMENT_DELETED': {
-      await supabase
+      const { data: canceledRows } = await supabase
         .from('subscriptions')
         .update({
           status: 'canceled',
           updated_at: new Date().toISOString(),
         })
-        .eq('asaas_subscription_id', asaasSubscriptionId);
+        .eq('asaas_subscription_id', asaasSubscriptionId)
+        .select('id');
+      if (!canceledRows?.length) {
+        console.warn(`[webhook] SUBSCRIPTION_CANCELED/PAYMENT_DELETED: no subscription found for ${asaasSubscriptionId}`);
+      }
       // Trigger sync_plan_from_subscription fires → sets profiles.plan='basic', audio_enabled=false
       break;
     }
