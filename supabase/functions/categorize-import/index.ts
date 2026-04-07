@@ -22,12 +22,6 @@ interface PendingTransaction {
   amount: number;
 }
 
-const VALID_CATEGORIES = new Set([
-  'alimentacao', 'delivery', 'transporte', 'moradia', 'saude',
-  'educacao', 'lazer', 'compras', 'assinaturas', 'transferencias',
-  'salario', 'investimentos', 'impostos', 'outros',
-]);
-
 const STUB_CONFIDENCE = 0.8; // Fixed confidence for keyword-matched results
 const CHUNK_SIZE = 100;
 
