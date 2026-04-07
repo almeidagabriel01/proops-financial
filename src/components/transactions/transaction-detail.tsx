@@ -173,6 +173,11 @@ export function TransactionDetail({
         {/* ── SELECTING: category grid ──────────────────────────────────── */}
         {mode === 'selecting' && (
           <div className="space-y-4">
+            {saveError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {saveError}
+              </p>
+            )}
             <CategorySelector
               currentCategory={tx.category ?? 'outros'}
               onSelect={handleCategorySelect}

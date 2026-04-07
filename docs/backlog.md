@@ -81,4 +81,17 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
-*Última atualização: 2026-04-06*
+## Tech Debt — usage_count no category_dictionary
+
+**Prioridade:** Baixa
+**Epic sugerido:** Epic 2 ext. (pós-MVP)
+**Origem:** Story 2.2 m2 (QA Review 2026-04-07)
+**Descrição:** `saveCorrection()` sempre envia `usage_count: 1` no upsert do `category_dictionary`. O Supabase JS substitui o campo no conflito em vez de incrementar. O AC3 da Story 2.2 especifica `usage_count=usage_count+1`.
+
+**Fix necessário:** Criar RPC `increment_category_usage(user_id, description_pattern, category)` que execute o UPDATE com `usage_count = usage_count + 1` no banco e chamá-la em substituição ao upsert direto, ou executar o incremento via SQL raw.
+
+**Impacto atual:** Baixo — a contagem de uso não é exibida para o usuário nem influencia decisões de categorização no MVP. O dicionário funciona corretamente para lookup (Tier 1); apenas o contador fica incorreto.
+
+---
+
+*Última atualização: 2026-04-07*

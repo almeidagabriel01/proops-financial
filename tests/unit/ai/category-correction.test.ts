@@ -132,8 +132,8 @@ describe('saveCorrection', () => {
     );
   });
 
-  it('throws when transaction update fails', async () => {
-    const { client } = makeSupabase({ txUpdateError: { message: 'RLS violation' } });
+  it('throws when transaction update fails and does not touch dictionary', async () => {
+    const { client, upsertFn } = makeSupabase({ txUpdateError: { message: 'RLS violation' } });
 
     await expect(
       saveCorrection(client, {
@@ -143,6 +143,8 @@ describe('saveCorrection', () => {
         newCategory: 'transporte',
       }),
     ).rejects.toEqual({ message: 'RLS violation' });
+
+    expect(upsertFn).not.toHaveBeenCalled();
   });
 
   it('throws when dictionary upsert fails', async () => {
