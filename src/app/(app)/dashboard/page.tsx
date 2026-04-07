@@ -124,12 +124,17 @@ export default async function DashboardPage({
           {weeklyData.length > 0 && <SpendingChart data={weeklyData} />}
 
           {/* Category breakdown — only when there are debit transactions */}
-          {currentCats.length > 0 && (
+          {currentCats.length > 0 ? (
             <>
               <CategoryChart data={currentCats} />
               <SpendingBreakdown data={currentCats} />
               <CategoryCards data={categoryBreakdown} />
             </>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">
+              <p className="text-sm">Nenhum gasto categorizado neste período.</p>
+              <p className="mt-1 text-xs">Importe um extrato ou adicione uma despesa.</p>
+            </div>
           )}
         </>
       ) : (
