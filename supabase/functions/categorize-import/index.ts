@@ -1,14 +1,18 @@
 // DENO RUNTIME — not Node.js!
 // Async categorization engine for imported transactions.
-// Implements 3-tier hierarchy: user dictionary → global cache → Claude Haiku.
+// Implements 3-tier hierarchy: user dictionary → global cache → keyword-rule stub.
 // Invoked by /api/import as fire-and-forget after saving transactions.
 // arch sections 4.2, 5.1, 5.2
+//
+// Tier 3 is currently a keyword-rule stub (no external API).
+// When real AI is enabled: replace categorizeBatchKeywords with a
+// Claude Haiku call using CATEGORIZE_SYSTEM/CATEGORIZE_USER from
+// src/lib/ai/prompts/categorize.ts. Keep keyword rules in sync.
 
 // NOTE: Uses Deno.serve() (modern Supabase Edge Function API).
 // Do NOT use serve() from deno.land/std — it is deprecated.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import Anthropic from 'npm:@anthropic-ai/sdk@0.36.3';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +28,7 @@ const VALID_CATEGORIES = new Set([
   'salario', 'investimentos', 'impostos', 'outros',
 ]);
 
-const CONFIDENCE_THRESHOLD = 0.7;
+const STUB_CONFIDENCE = 0.8; // Fixed confidence for keyword-matched results
 const CHUNK_SIZE = 100;
 
 // ─── Description normalization (mirrors SQL normalize_description()) ───────────
@@ -39,34 +43,130 @@ function normalizeDescription(raw: string): string {
     .trim();
 }
 
-// ─── Prompt templates (arch section 5.2) ─────────────────────────────────────
+// ─── Keyword rules (Tier 3 stub) — kept in sync with src/lib/ai/categorizer.ts ─
+//
+// Rules operate on the NORMALIZED description (lowercase, no accents/specials).
+// Ordering is intentional:
+//   - delivery BEFORE transporte ("uber eats" → delivery, "uber" → transporte)
+//   - transferencias BEFORE moradia ("pix recarga tim" → transferencias, not moradia)
+//   - "amazon prime" inside assinaturas BEFORE "amazon " in compras
+//   - iptu ONLY in impostos (not moradia)
+//   - Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
 
-const CATEGORIZE_SYSTEM = `Voce e um classificador de transacoes financeiras brasileiras.
+const KEYWORD_RULES: Array<{ keywords: string[]; category: string }> = [
+  {
+    keywords: ['ifood', 'rappi', 'uber eats', '99food', 'james ', 'loggi'],
+    category: 'delivery',
+  },
+  {
+    keywords: [
+      'uber', '99 ', 'cabify', 'estacionamento', 'pedagio',
+      'metro ', 'sptrans', 'bilhete unico',
+      'gasolina', 'etanol', 'combustivel',
+      'posto ', 'shell ', 'ipiranga', 'petrobras',
+    ],
+    category: 'transporte',
+  },
+  {
+    keywords: [
+      'supermercado', 'hipermercado', 'carrefour', 'extra ',
+      'pao de acucar', 'atacadao', 'assai', 'hortifrutti', 'hortifruti',
+      'restaurante', 'padaria', 'lanchonete',
+      'mc donalds', 'mcdonalds', 'burger', 'churrascaria', 'pizzaria',
+      'sushi', 'acougue', 'mercearia', 'sacolao',
+    ],
+    category: 'alimentacao',
+  },
+  {
+    keywords: [
+      'netflix', 'spotify', 'amazon prime', 'icloud', 'disney',
+      'hbo ', 'globoplay', 'apple tv', 'deezer', 'youtube premium',
+      'crunchyroll', 'academia', 'smartfit', 'smart fit',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    keywords: [
+      'farmacia', 'drogaria', 'droga raia', 'drogasil', 'ultrafarma',
+      'pacheco', 'nissei', 'clinica', 'consulta', 'medico', 'dentista',
+      'laboratorio', 'hospital', 'unimed', 'amil', 'hapvida',
+      'plano saude', 'exame ', 'fisioterapia', 'droga ',
+    ],
+    category: 'saude',
+  },
+  {
+    keywords: [
+      'mercado livre', 'shopee', 'aliexpress', 'magalu', 'magazine luiza',
+      'americanas', 'renner', 'ca moda', 'zara', 'hm ', 'riachuelo',
+      'kabum', 'submarino', 'ponto frio', 'casas bahia',
+      'amazon marketplace', 'amazon ',
+    ],
+    category: 'compras',
+  },
+  {
+    keywords: ['pix ', 'ted ', 'doc ', 'transferencia', 'emprestimo'],
+    category: 'transferencias',
+  },
+  {
+    keywords: [
+      'aluguel', 'condominio', 'energia ', 'cpfl', 'enel', 'cemig',
+      'light ', 'eletrobras', 'sabesp', 'comgas', 'copasa', 'sanepar',
+      'gas ', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
+    ],
+    category: 'moradia',
+  },
+  {
+    keywords: [
+      'faculdade', 'universidade', 'escola ', 'colegio', 'mensalidade',
+      'udemy', 'alura', 'coursera', 'curso ', 'treinamento', 'pearson', 'apostila',
+    ],
+    category: 'educacao',
+  },
+  {
+    keywords: [
+      'cinema', 'teatro', 'show ', 'ingresso', 'bilheteria',
+      'pousada', 'hotel ', 'hospedagem', 'viagem', 'turismo',
+      'bar ', 'balada', 'steam ', 'xbox', 'playstation', 'nintendo',
+      'jogos', 'lazer', 'cervejaria', 'ticketmaster', 'sympla', 'gamepass',
+    ],
+    category: 'lazer',
+  },
+  {
+    keywords: [
+      'salario', 'freelance', 'deposito renda', 'renda mensal',
+      'decimo terceiro', 'bonus ', 'remuneracao', 'pro labore',
+    ],
+    category: 'salario',
+  },
+  {
+    keywords: [
+      'investimento', 'tesouro direto', 'tesouro selic',
+      'cdb', 'lci', 'lca', 'fii', 'acoes', 'corretora',
+      'xp ', 'rico ', 'clear ', 'nuinvest', 'caixinha', 'rendimento',
+      'resgate', 'aplicacao',
+    ],
+    category: 'investimentos',
+  },
+  {
+    keywords: [
+      'imposto', 'ipva', 'iptu', 'iof', 'darf', 'das ', 'mei ',
+      'taxa ', 'tributo', 'receita federal', 'detran', 'sefaz',
+    ],
+    category: 'impostos',
+  },
+];
 
-CATEGORIAS DISPONIVEIS:
-- alimentacao (supermercados, restaurantes, padarias)
-- delivery (iFood, Rappi, Uber Eats, 99Food)
-- transporte (Uber, 99, combustivel, estacionamento, pedagio)
-- moradia (aluguel, condominio, IPTU, energia, agua, gas, internet)
-- saude (farmacias, consultas, plano de saude, exames)
-- educacao (escola, faculdade, cursos, livros)
-- lazer (cinema, streaming, jogos, viagens, bares)
-- compras (roupas, eletronicos, Mercado Livre, Amazon, Shopee)
-- assinaturas (Netflix, Spotify, iCloud, gym)
-- transferencias (PIX enviado, TED, DOC — entre pessoas)
-- salario (salario, freelance, renda, deposito recorrente)
-- investimentos (aplicacao, resgate, corretora)
-- impostos (IR, IPVA, IPTU, DAS, taxas governamentais)
-- outros (nao se encaixa em nenhuma acima)
-
-REGRAS:
-- Responda APENAS com JSON, sem explicacao
-- Use a descricao para inferir a categoria
-- Na duvida, use "outros"
-- Considere o contexto brasileiro`;
-
-const CATEGORIZE_USER = (transactions: { id: string; description: string; amount: number }[]) =>
-  `Classifique estas transacoes:\n${JSON.stringify(transactions)}\n\nResponda no formato: [{"id": "...", "category": "...", "confidence": 0.95}]`;
+function categorizeByKeywords(description: string): { category: string; confidence: number } {
+  const normalized = normalizeDescription(description);
+  for (const rule of KEYWORD_RULES) {
+    for (const keyword of rule.keywords) {
+      if (normalized.includes(keyword)) {
+        return { category: rule.category, confidence: STUB_CONFIDENCE };
+      }
+    }
+  }
+  return { category: 'outros', confidence: 0 };
+}
 
 // ─── Tier 1: User dictionary lookup (table: category_dictionary) ──────────────
 
@@ -145,9 +245,11 @@ async function lookupGlobalCache(
   return results;
 }
 
-// ─── Tier 3: Claude Haiku batch call ─────────────────────────────────────────
+// ─── Tier 3: Keyword-rule stub ────────────────────────────────────────────────
+// Uses ordered keyword matching — no external API call.
+// Saves non-'outros' results to category_cache for Tier 2 reuse.
 
-async function categorizeBatchHaiku(
+async function categorizeBatchKeywords(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   transactions: PendingTransaction[],
@@ -155,51 +257,13 @@ async function categorizeBatchHaiku(
   const results = new Map<string, { category: string; confidence: number }>();
   if (transactions.length === 0) return results;
 
-  const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
-
-  let rawResponse = '[]';
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: CATEGORIZE_USER(transactions) }],
-      system: CATEGORIZE_SYSTEM,
-    });
-    const textBlock = response.content.find((b: { type: string }) => b.type === 'text') as { type: 'text'; text: string } | undefined;
-    rawResponse = textBlock?.text ?? '[]';
-  } catch (err) {
-    console.error('[categorize-import] Tier 3 Haiku call failed:', err);
-    for (const t of transactions) {
-      results.set(t.id, { category: 'outros', confidence: 0 });
-    }
-    return results;
-  }
-
-  let parsed: { id: string; category: string; confidence: number }[];
-  try {
-    const json = rawResponse.replace(/^```json?\n?|```$/gm, '').trim();
-    parsed = JSON.parse(json);
-  } catch {
-    console.error('[categorize-import] Tier 3 parse error — raw:', rawResponse);
-    for (const t of transactions) {
-      results.set(t.id, { category: 'outros', confidence: 0 });
-    }
-    return results;
-  }
-
-  const parsedMap = new Map(parsed.map((p) => [p.id, p]));
   const cacheUpserts: { description_normalized: string; category: string; confidence: number }[] = [];
 
   for (const t of transactions) {
-    const hit = parsedMap.get(t.id);
-    const confidence = hit?.confidence ?? 0;
-    const rawCategory = hit?.category ?? 'outros';
-    const category =
-      VALID_CATEGORIES.has(rawCategory) && confidence >= CONFIDENCE_THRESHOLD ? rawCategory : 'outros';
-
+    const { category, confidence } = categorizeByKeywords(t.description);
     results.set(t.id, { category, confidence });
 
-    if (VALID_CATEGORIES.has(rawCategory) && confidence >= CONFIDENCE_THRESHOLD) {
+    if (category !== 'outros') {
       cacheUpserts.push({
         description_normalized: normalizeDescription(t.description),
         category,
@@ -319,8 +383,8 @@ Deno.serve(async (req) => {
     const afterTier2 = afterTier1.filter((t) => !cacheHits.has(t.id));
     console.log('[categorize-import] Tier 2 hits:', cacheHits.size, 'remaining:', afterTier2.length);
 
-    // ── Tier 3: Claude Haiku ─────────────────────────────────────────────────
-    const aiResults = await categorizeBatchHaiku(supabase, afterTier2);
+    // ── Tier 3: Keyword-rule stub ────────────────────────────────────────────
+    const aiResults = await categorizeBatchKeywords(supabase, afterTier2);
     console.log('[categorize-import] Tier 3 categorized:', aiResults.size);
 
     // ── Build and save all updates ───────────────────────────────────────────

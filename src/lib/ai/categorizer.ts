@@ -1,13 +1,18 @@
-// Batch categorization engine (Tier 3 — Claude Haiku)
-// Handles transactions not resolved by Tier 1 (user dictionary) or
-// Tier 2 (global cache). One Haiku call for the entire remaining batch.
-// arch section 5.1, 5.2
+// Batch categorization engine — Tier 3 stub (rule-based keyword matching)
+//
+// The real Tier 3 calls Claude Haiku 4.5 (see docs/ai-integration-roadmap.md).
+// This stub replaces the API call with ordered keyword rules so the full
+// categorization pipeline works without an API key.
+//
+// When real AI is enabled: swap `categorizeBatch` to use Anthropic SDK +
+// CATEGORIZE_SYSTEM/CATEGORIZE_USER prompts from ./prompts/categorize.ts
+//
+// Keep keyword rules in sync with supabase/functions/categorize-import/index.ts
+// arch sections 5.1, 5.2
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { CATEGORIZE_SYSTEM, CATEGORIZE_USER, VALID_CATEGORIES } from './prompts/categorize';
 
-const CONFIDENCE_THRESHOLD = 0.7;
+const STUB_CONFIDENCE = 0.8; // Fixed confidence for keyword-matched results
 const CHUNK_SIZE = 100;
 
 // Description normalization (mirrors SQL normalize_description() function)
@@ -22,6 +27,141 @@ export function normalizeDescription(raw: string): string {
     .trim();
 }
 
+// ─── Keyword rules (ordered — first match wins) ───────────────────────────────
+//
+// Rules operate on the NORMALIZED description (lowercase, no accents/specials).
+// Ordering is intentional:
+//   - delivery BEFORE transporte ("uber eats" → delivery, "uber" → transporte)
+//   - transferencias BEFORE moradia ("pix recarga tim" → transferencias, not moradia)
+//   - "amazon prime" checked inside assinaturas BEFORE "amazon " in compras
+//   - iptu ONLY in impostos (not moradia)
+//   - Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
+
+const KEYWORD_RULES: Array<{ keywords: string[]; category: string }> = [
+  {
+    // delivery BEFORE transporte so "uber eats" wins over "uber"
+    keywords: ['ifood', 'rappi', 'uber eats', '99food', 'james ', 'loggi'],
+    category: 'delivery',
+  },
+  {
+    keywords: [
+      'uber', '99 ', 'cabify', 'estacionamento', 'pedagio',
+      'metro ', 'sptrans', 'bilhete unico',
+      'gasolina', 'etanol', 'combustivel',
+      'posto ', 'shell ', 'ipiranga', 'petrobras',
+    ],
+    category: 'transporte',
+  },
+  {
+    // No generic "mercado" — too ambiguous with Mercado Livre (compras)
+    keywords: [
+      'supermercado', 'hipermercado', 'carrefour', 'extra ',
+      'pao de acucar', 'atacadao', 'assai', 'hortifrutti', 'hortifruti',
+      'restaurante', 'padaria', 'lanchonete',
+      'mc donalds', 'mcdonalds', 'burger', 'churrascaria', 'pizzaria',
+      'sushi', 'acougue', 'mercearia', 'sacolao',
+    ],
+    category: 'alimentacao',
+  },
+  {
+    // Gaming subscriptions (xbox/playstation/gamepass) go to lazer, not here
+    keywords: [
+      'netflix', 'spotify', 'amazon prime', 'icloud', 'disney',
+      'hbo ', 'globoplay', 'apple tv', 'deezer', 'youtube premium',
+      'crunchyroll', 'academia', 'smartfit', 'smart fit',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    keywords: [
+      'farmacia', 'drogaria', 'droga raia', 'drogasil', 'ultrafarma',
+      'pacheco', 'nissei', 'clinica', 'consulta', 'medico', 'dentista',
+      'laboratorio', 'hospital', 'unimed', 'amil', 'hapvida',
+      'plano saude', 'exame ', 'fisioterapia', 'droga ',
+    ],
+    category: 'saude',
+  },
+  {
+    // "mercado livre" explicitly here; "amazon prime" already caught in assinaturas
+    keywords: [
+      'mercado livre', 'shopee', 'aliexpress', 'magalu', 'magazine luiza',
+      'americanas', 'renner', 'ca moda', 'zara', 'hm ', 'riachuelo',
+      'kabum', 'submarino', 'ponto frio', 'casas bahia',
+      'amazon marketplace', 'amazon ',
+    ],
+    category: 'compras',
+  },
+  {
+    // transferencias BEFORE moradia: "pix recarga tim" must hit here, not moradia
+    keywords: ['pix ', 'ted ', 'doc ', 'transferencia', 'emprestimo'],
+    category: 'transferencias',
+  },
+  {
+    // iptu NOT here — it goes to impostos only
+    keywords: [
+      'aluguel', 'condominio', 'energia ', 'cpfl', 'enel', 'cemig',
+      'light ', 'eletrobras', 'sabesp', 'comgas', 'copasa', 'sanepar',
+      'gas ', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
+    ],
+    category: 'moradia',
+  },
+  {
+    keywords: [
+      'faculdade', 'universidade', 'escola ', 'colegio', 'mensalidade',
+      'udemy', 'alura', 'coursera', 'curso ', 'treinamento', 'pearson', 'apostila',
+    ],
+    category: 'educacao',
+  },
+  {
+    // Gaming subscriptions live here (not assinaturas)
+    keywords: [
+      'cinema', 'teatro', 'show ', 'ingresso', 'bilheteria',
+      'pousada', 'hotel ', 'hospedagem', 'viagem', 'turismo',
+      'bar ', 'balada', 'steam ', 'xbox', 'playstation', 'nintendo',
+      'jogos', 'lazer', 'cervejaria', 'ticketmaster', 'sympla', 'gamepass',
+    ],
+    category: 'lazer',
+  },
+  {
+    keywords: [
+      'salario', 'freelance', 'deposito renda', 'renda mensal',
+      'decimo terceiro', 'bonus ', 'remuneracao', 'pro labore',
+    ],
+    category: 'salario',
+  },
+  {
+    keywords: [
+      'investimento', 'tesouro direto', 'tesouro selic',
+      'cdb', 'lci', 'lca', 'fii', 'acoes', 'corretora',
+      'xp ', 'rico ', 'clear ', 'nuinvest', 'caixinha', 'rendimento',
+      'resgate', 'aplicacao',
+    ],
+    category: 'investimentos',
+  },
+  {
+    // iptu ONLY here (not in moradia)
+    keywords: [
+      'imposto', 'ipva', 'iptu', 'iof', 'darf', 'das ', 'mei ',
+      'taxa ', 'tributo', 'receita federal', 'detran', 'sefaz',
+    ],
+    category: 'impostos',
+  },
+];
+
+// Categorizes a single description using keyword rules.
+// Returns confidence=0 and category='outros' when no rule matches.
+export function categorizeByKeywords(description: string): { category: string; confidence: number } {
+  const normalized = normalizeDescription(description);
+  for (const rule of KEYWORD_RULES) {
+    for (const keyword of rule.keywords) {
+      if (normalized.includes(keyword)) {
+        return { category: rule.category, confidence: STUB_CONFIDENCE };
+      }
+    }
+  }
+  return { category: 'outros', confidence: 0 };
+}
+
 export interface TransactionForCategorization {
   id: string;
   description: string;
@@ -34,9 +174,9 @@ export interface CategorizationResult {
   confidence: number;
 }
 
-// Calls Claude Haiku with all transactions in a single batch request.
-// Validates each result: invalid category or confidence < threshold → 'outros'.
-// Saves results to category_cache for future reuse.
+// Categorizes a batch of transactions using keyword rules (Tier 3 stub).
+// Saves results to category_cache for future cross-user reuse.
+// When real AI is enabled, replace this with a single Claude Haiku batch call.
 export async function categorizeBatch(
   supabase: SupabaseClient,
   transactions: TransactionForCategorization[],
@@ -45,64 +185,14 @@ export async function categorizeBatch(
 
   if (transactions.length === 0) return results;
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const payload = transactions.map((t) => ({
-    id: t.id,
-    description: t.description,
-    amount: t.amount,
-  }));
-
-  let rawResponse: string;
-  try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: CATEGORIZE_USER(payload) }],
-      system: CATEGORIZE_SYSTEM,
-    });
-
-    const textBlock = response.content.find((b) => b.type === 'text');
-    rawResponse = textBlock?.text ?? '[]';
-  } catch (err) {
-    console.error('[categorizer] Haiku API call failed:', err);
-    // Fallback: mark all as 'outros'
-    for (const t of transactions) {
-      results.set(t.id, { transactionId: t.id, category: 'outros', confidence: 0 });
-    }
-    return results;
-  }
-
-  // Parse and validate response
-  let parsed: { id: string; category: string; confidence: number }[];
-  try {
-    // Strip potential markdown code fences
-    const json = rawResponse.replace(/^```json?\n?|```$/gm, '').trim();
-    parsed = JSON.parse(json);
-  } catch {
-    console.error('[categorizer] Failed to parse Haiku response:', rawResponse);
-    for (const t of transactions) {
-      results.set(t.id, { transactionId: t.id, category: 'outros', confidence: 0 });
-    }
-    return results;
-  }
-
-  // Build lookup by id
-  const parsedMap = new Map(parsed.map((p) => [p.id, p]));
-
   const cacheUpserts: { description_normalized: string; category: string; confidence: number }[] = [];
 
   for (const t of transactions) {
-    const hit = parsedMap.get(t.id);
-    const confidence = hit?.confidence ?? 0;
-    const rawCategory = hit?.category ?? 'outros';
-    const category =
-      VALID_CATEGORIES.has(rawCategory) && confidence >= CONFIDENCE_THRESHOLD ? rawCategory : 'outros';
-
+    const { category, confidence } = categorizeByKeywords(t.description);
     results.set(t.id, { transactionId: t.id, category, confidence });
 
-    // Prepare cache upsert (only for valid, confident results)
-    if (VALID_CATEGORIES.has(rawCategory) && confidence >= CONFIDENCE_THRESHOLD) {
+    // Only cache non-'outros' results to avoid polluting the cache with unknowns
+    if (category !== 'outros') {
       cacheUpserts.push({
         description_normalized: normalizeDescription(t.description),
         category,
@@ -111,12 +201,12 @@ export async function categorizeBatch(
     }
   }
 
-  // Save to category_cache (fire-and-forget)
+  // Save to category_cache (fire-and-forget) so Tier 2 hits on future imports
   if (cacheUpserts.length > 0) {
     supabase
       .from('category_cache')
       .upsert(cacheUpserts, { onConflict: 'description_normalized', ignoreDuplicates: false })
-      .then(({ error }) => {
+      .then(({ error }: { error: unknown }) => {
         if (error) console.error('[categorizer] cache upsert error:', error);
       });
   }

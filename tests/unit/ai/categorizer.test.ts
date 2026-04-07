@@ -1,22 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-// ─── Mock Anthropic SDK (vi.hoisted = available inside mock factory) ──────────
-
-const { mockAnthropicCreate } = vi.hoisted(() => ({
-  mockAnthropicCreate: vi.fn().mockResolvedValue({
-    content: [{ type: 'text', text: '[]' }],
-  }),
-}));
-
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn(function () {
-    return { messages: { create: mockAnthropicCreate } };
-  }),
-}));
-
-import { normalizeDescription, categorizeBatch, saveCategorizations } from '@/lib/ai/categorizer';
+import {
+  normalizeDescription,
+  categorizeByKeywords,
+  categorizeBatch,
+  saveCategorizations,
+} from '@/lib/ai/categorizer';
 import { lookupUserDictionary, lookupGlobalCache } from '@/lib/ai/cache';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -25,7 +16,7 @@ function makeMockFromQuery(returnValue: { data: unknown; error: unknown }) {
   const query = {
     select: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
-    upsert: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockReturnValue({ then: vi.fn() }),
     eq: vi.fn().mockReturnThis(),
     in: vi.fn().mockResolvedValue(returnValue),
     then: vi.fn().mockResolvedValue({ error: null }),
@@ -172,99 +163,121 @@ describe('lookupGlobalCache', () => {
   });
 });
 
+// ─── categorizeByKeywords ─────────────────────────────────────────────────────
+
+describe('categorizeByKeywords', () => {
+  it('IFOOD → delivery', () => {
+    expect(categorizeByKeywords('IFOOD*HAMBURGUER').category).toBe('delivery');
+  });
+
+  it('UBER → transporte', () => {
+    expect(categorizeByKeywords('UBER TRIP').category).toBe('transporte');
+  });
+
+  it('UBER EATS → delivery (prioridade sobre transporte)', () => {
+    expect(categorizeByKeywords('UBER EATS PAGAMENTO').category).toBe('delivery');
+  });
+
+  it('NETFLIX → assinaturas', () => {
+    expect(categorizeByKeywords('NETFLIX.COM').category).toBe('assinaturas');
+  });
+
+  it('AMAZON PRIME → assinaturas (não compras)', () => {
+    expect(categorizeByKeywords('AMAZON PRIME VIDEO').category).toBe('assinaturas');
+  });
+
+  it('AMAZON → compras (sem "prime")', () => {
+    expect(categorizeByKeywords('AMAZON MARKETPLACE').category).toBe('compras');
+  });
+
+  it('XBOX → lazer (não assinaturas)', () => {
+    expect(categorizeByKeywords('XBOX GAME PASS').category).toBe('lazer');
+  });
+
+  it('PIX TIM → transferencias (não moradia)', () => {
+    expect(categorizeByKeywords('PIX RECARGA TIM CELULAR').category).toBe('transferencias');
+  });
+
+  it('IPTU → impostos (não moradia)', () => {
+    expect(categorizeByKeywords('BOLETO IPTU 2024').category).toBe('impostos');
+  });
+
+  it('MERCADO LIVRE → compras (não alimentacao)', () => {
+    expect(categorizeByKeywords('MERCADO LIVRE PAGAMENTO').category).toBe('compras');
+  });
+
+  it('descrição sem match → outros com confidence=0', () => {
+    const result = categorizeByKeywords('XYZ COMERCIO LTDA 99999');
+    expect(result.category).toBe('outros');
+    expect(result.confidence).toBe(0);
+  });
+
+  it('resultado com match retorna confidence=0.8', () => {
+    expect(categorizeByKeywords('SPOTIFY').confidence).toBe(0.8);
+  });
+});
+
 // ─── categorizeBatch ─────────────────────────────────────────────────────────
 
 describe('categorizeBatch', () => {
-  beforeEach(() => {
-    mockAnthropicCreate.mockReset();
+  it('categoriza "IFOOD*PIZZA" como delivery via keyword', async () => {
+    const supabase = makeMockSupabase();
+    const result = await categorizeBatch(supabase as never, [
+      { id: 'tx1', description: 'IFOOD*PIZZA', amount: -45 },
+    ]);
+    expect(result.get('tx1')).toMatchObject({ category: 'delivery', confidence: 0.8 });
   });
 
-  it('chama Claude Haiku e retorna categoria válida', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: JSON.stringify([{ id: 'tx1', category: 'delivery', confidence: 0.95 }]) }],
-    });
-
+  it('retorna "outros" com confidence=0 para descrição sem match', async () => {
     const supabase = makeMockSupabase();
-    // upsert: return thenable for fire-and-forget
-    supabase._query.upsert.mockReturnValue({ then: vi.fn() });
-
-    const transactions = [{ id: 'tx1', description: 'IFOOD PIZZA', amount: -45 }];
-    const result = await categorizeBatch(supabase as never, transactions);
-
-    expect(result.size).toBe(1);
-    expect(result.get('tx1')).toMatchObject({ category: 'delivery', confidence: 0.95 });
-    expect(mockAnthropicCreate).toHaveBeenCalledOnce();
+    const result = await categorizeBatch(supabase as never, [
+      { id: 'tx1', description: 'DESCRICAO GENERICA DESCONHECIDA', amount: -15 },
+    ]);
+    expect(result.get('tx1')).toMatchObject({ category: 'outros', confidence: 0 });
   });
 
-  it('faz fallback para "outros" quando confiança < 0.7', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: JSON.stringify([{ id: 'tx1', category: 'lazer', confidence: 0.5 }]) }],
-    });
-
+  it('processa batch de múltiplas transações corretamente', async () => {
     const supabase = makeMockSupabase();
-    const transactions = [{ id: 'tx1', description: 'DESCRICAO GENERICA', amount: -15 }];
-    const result = await categorizeBatch(supabase as never, transactions);
-
-    expect(result.get('tx1')?.category).toBe('outros');
-  });
-
-  it('faz fallback para "outros" quando categoria é inválida', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: JSON.stringify([{ id: 'tx1', category: 'categoria_inventada', confidence: 0.99 }]) }],
-    });
-
-    const supabase = makeMockSupabase();
-    const transactions = [{ id: 'tx1', description: 'ALGUM COMERCIO', amount: -50 }];
-    const result = await categorizeBatch(supabase as never, transactions);
-
-    expect(result.get('tx1')?.category).toBe('outros');
-  });
-
-  it('faz fallback gracioso quando a API falha', async () => {
-    mockAnthropicCreate.mockRejectedValueOnce(new Error('API timeout'));
-
-    const supabase = makeMockSupabase();
-    const transactions = [
-      { id: 'tx1', description: 'UBER', amount: -20 },
-      { id: 'tx2', description: 'NETFLIX', amount: -39.90 },
-    ];
-    const result = await categorizeBatch(supabase as never, transactions);
-
-    expect(result.size).toBe(2);
-    expect(result.get('tx1')?.category).toBe('outros');
-    expect(result.get('tx2')?.category).toBe('outros');
-  });
-
-  it('processa batch de múltiplas transações em uma única chamada API', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify([
-            { id: 'tx1', category: 'transporte', confidence: 0.97 },
-            { id: 'tx2', category: 'assinaturas', confidence: 0.99 },
-            { id: 'tx3', category: 'alimentacao', confidence: 0.92 },
-          ]),
-        },
-      ],
-    });
-
-    const supabase = makeMockSupabase();
-    supabase._query.upsert.mockReturnValue({ then: vi.fn() });
-
     const transactions = [
       { id: 'tx1', description: 'UBER', amount: -18 },
-      { id: 'tx2', description: 'NETFLIX', amount: -39.90 },
+      { id: 'tx2', description: 'NETFLIX', amount: -39.9 },
       { id: 'tx3', description: 'PAO DE ACUCAR', amount: -150 },
     ];
-
     const result = await categorizeBatch(supabase as never, transactions);
-
-    expect(mockAnthropicCreate).toHaveBeenCalledOnce(); // único batch — não 3 chamadas
     expect(result.size).toBe(3);
     expect(result.get('tx1')?.category).toBe('transporte');
     expect(result.get('tx2')?.category).toBe('assinaturas');
     expect(result.get('tx3')?.category).toBe('alimentacao');
+  });
+
+  it('salva no category_cache resultados com categoria não-outros', async () => {
+    const supabase = makeMockSupabase();
+    const mockThen = vi.fn();
+    supabase._query.upsert.mockReturnValue({ then: mockThen });
+
+    await categorizeBatch(supabase as never, [
+      { id: 'tx1', description: 'IFOOD PIZZA', amount: -45 },
+      { id: 'tx2', description: 'DESCRICAO DESCONHECIDA', amount: -10 },
+    ]);
+
+    expect(supabase._query.upsert).toHaveBeenCalledOnce();
+    const upsertArg = supabase._query.upsert.mock.calls[0][0];
+    expect(upsertArg).toHaveLength(1); // apenas ifood, não 'outros'
+    expect(upsertArg[0]).toMatchObject({ category: 'delivery' });
+  });
+
+  it('não chama upsert quando todas as transações são "outros"', async () => {
+    const supabase = makeMockSupabase();
+    await categorizeBatch(supabase as never, [
+      { id: 'tx1', description: 'XYZ DESCONHECIDO', amount: -10 },
+    ]);
+    expect(supabase._query.upsert).not.toHaveBeenCalled();
+  });
+
+  it('retorna mapa vazio para batch vazio', async () => {
+    const supabase = makeMockSupabase();
+    const result = await categorizeBatch(supabase as never, []);
+    expect(result.size).toBe(0);
   });
 });
 
@@ -297,28 +310,12 @@ describe('saveCategorizations', () => {
 // ─── Accuracy test com dataset brasileiro ─────────────────────────────────────
 
 describe('Accuracy com dataset de 100 transações brasileiras', () => {
-  beforeEach(() => {
-    mockAnthropicCreate.mockReset();
-  });
-
-  it('≥ 85% de acurácia nas categorias esperadas (AC9)', async () => {
+  it('≥ 85% de acurácia nas categorias esperadas via keyword rules (AC9)', async () => {
     const fixtures = JSON.parse(
       readFileSync(join(process.cwd(), 'tests/fixtures/transactions-br-100.json'), 'utf-8'),
     ) as { description: string; amount: number; expected: string }[];
 
-    // Mock retorna exatamente as categorias esperadas do dataset
-    const mockResponses = fixtures.map((f, i) => ({
-      id: `tx-${i}`,
-      category: f.expected,
-      confidence: 0.92,
-    }));
-
-    mockAnthropicCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: JSON.stringify(mockResponses) }],
-    });
-
     const supabase = makeMockSupabase();
-    supabase._query.upsert.mockReturnValue({ then: vi.fn() });
 
     const transactions = fixtures.map((f, i) => ({
       id: `tx-${i}`,
@@ -329,14 +326,22 @@ describe('Accuracy com dataset de 100 transações brasileiras', () => {
     const result = await categorizeBatch(supabase as never, transactions);
 
     let correct = 0;
+    const mismatches: string[] = [];
     for (let i = 0; i < fixtures.length; i++) {
       const got = result.get(`tx-${i}`)?.category;
       const expected = fixtures[i].expected;
-      if (got === expected) correct++;
+      if (got === expected) {
+        correct++;
+      } else {
+        mismatches.push(`  "${fixtures[i].description}" → got=${got}, expected=${expected}`);
+      }
     }
 
     const accuracy = correct / fixtures.length;
     console.log(`Accuracy: ${(accuracy * 100).toFixed(1)}% (${correct}/${fixtures.length})`);
+    if (mismatches.length > 0) {
+      console.log('Mismatches:\n' + mismatches.join('\n'));
+    }
 
     expect(accuracy).toBeGreaterThanOrEqual(0.85);
   });
