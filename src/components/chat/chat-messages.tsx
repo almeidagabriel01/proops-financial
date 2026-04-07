@@ -6,7 +6,7 @@ import { ChatBubble } from './chat-bubble';
 
 interface ChatMessagesProps {
   messages: UIMessage[];
-  isLoading: boolean;
+  status: 'submitted' | 'streaming' | 'ready' | 'error';
 }
 
 function getTextContent(msg: UIMessage): string {
@@ -16,14 +16,14 @@ function getTextContent(msg: UIMessage): string {
     .join('');
 }
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+export function ChatMessages({ messages, status }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, status]);
 
-  if (messages.length === 0 && !isLoading) {
+  if (messages.length === 0 && status === 'ready') {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center">
         <div>
@@ -42,8 +42,8 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
         <ChatBubble key={msg.id} role={msg.role as 'user' | 'assistant'} content={getTextContent(msg)} />
       ))}
 
-      {/* Streaming indicator for in-progress response */}
-      {isLoading && (
+      {/* Streaming indicator only while awaiting first token (not during active streaming) */}
+      {status === 'submitted' && (
         <ChatBubble role="assistant" content="" isStreaming />
       )}
 

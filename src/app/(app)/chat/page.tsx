@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useUser } from '@/hooks/use-user';
@@ -16,9 +16,8 @@ export default function ChatPage() {
   const { initialMessages, historyLoading, saveMessage } = useChatHistory(user?.id ?? null);
   const [input, setInput] = useState('');
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
-    messages: initialMessages,
     onFinish: ({ message }) => {
       const text = message.parts
         .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
@@ -28,8 +27,17 @@ export default function ChatPage() {
     },
   });
 
+  // Sync DB history once loaded — useChat ignores messages prop after initial mount
+  useEffect(() => {
+    if (!historyLoading && initialMessages.length > 0) {
+      setMessages(initialMessages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyLoading]);
+
   const isLoading = status === 'submitted' || status === 'streaming';
   const queriesUsed = profile?.ai_queries_this_month ?? 0;
+
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -59,7 +67,7 @@ export default function ChatPage() {
         <p className="text-xs text-muted-foreground">Pergunte sobre suas finanças em PT-BR</p>
       </div>
 
-      <ChatMessages messages={messages} isLoading={isLoading} />
+      <ChatMessages messages={messages} status={status} />
 
       <ChatInput
         value={input}

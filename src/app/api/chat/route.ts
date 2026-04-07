@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
@@ -53,24 +53,12 @@ export async function POST(req: Request) {
     console.log('[chat] stub mode — ANTHROPIC_API_KEY not set');
     const stubText =
       '[Modo demonstração] Configure ANTHROPIC_API_KEY para ativar o assistente financeiro com seus dados reais.';
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(`0:${JSON.stringify(stubText)}\n`));
-        controller.enqueue(
-          encoder.encode(
-            `d:${JSON.stringify({ finishReason: 'stop', usage: { promptTokens: 0, completionTokens: 1 } })}\n`
-          )
-        );
-        controller.close();
+    const stream = createUIMessageStream({
+      execute({ writer }) {
+        writer.write({ type: 'text-delta', delta: stubText } as Parameters<typeof writer.write>[0]);
       },
     });
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Vercel-AI-Data-Stream': 'v1',
-      },
-    });
+    return createUIMessageStreamResponse({ stream });
   }
 
   const modelMessages = await convertToModelMessages(messages);
