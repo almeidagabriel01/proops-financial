@@ -9,7 +9,7 @@ const tabs = [
   { href: '/dashboard', icon: BarChart2, label: 'Início' },
   { href: '/transactions', icon: CreditCard, label: 'Transações' },
   { href: '/import', icon: Plus, label: 'Importar', highlight: true },
-  { href: '/chat', icon: MessageCircle, label: 'Chat', disabled: true },
+  { href: '/chat', icon: MessageCircle, label: 'Chat' },
   { href: '/settings', icon: Settings, label: 'Config' },
 ];
 
@@ -35,19 +35,6 @@ export function BottomNav() {
                 </span>
                 <span className="mt-1 text-[10px] font-medium text-primary">{tab.label}</span>
               </Link>
-            );
-          }
-
-          if (tab.disabled) {
-            return (
-              <span
-                key={tab.href}
-                className="flex h-16 flex-col items-center justify-center gap-1 px-3 opacity-40"
-                aria-disabled="true"
-              >
-                <Icon className="h-5 w-5 text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground">{tab.label}</span>
-              </span>
             );
           }
 

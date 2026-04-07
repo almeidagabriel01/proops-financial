@@ -49,8 +49,8 @@ function makeSelectChain(data: Array<{ id: string; description: string }>, error
 }
 
 function makeSupabase({
-  txUpdateError = null,
-  dictUpsertError = null,
+  txUpdateError = null as { message: string } | null,
+  dictUpsertError = null as { message: string } | null,
   selectData = [] as Array<{ id: string; description: string }>,
   selectError = null as unknown,
 } = {}) {
