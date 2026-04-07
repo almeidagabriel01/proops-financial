@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { UIMessage } from 'ai';
+import { isToolUIPart, getToolName, type UIMessage } from 'ai';
+import type { ReactNode } from 'react';
 import { ChatBubble } from './chat-bubble';
 
 interface ChatMessagesProps {
@@ -9,11 +10,33 @@ interface ChatMessagesProps {
   status: 'submitted' | 'streaming' | 'ready' | 'error';
 }
 
-function getTextContent(msg: UIMessage): string {
-  return msg.parts
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
-    .join('');
+function getMessageContent(msg: UIMessage): ReactNode {
+  const nodes = msg.parts.map((part, i) => {
+    if (part.type === 'text') {
+      return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+    }
+    if (isToolUIPart(part)) {
+      const name = getToolName(part);
+      const state = part.state;
+      if (state === 'input-streaming' || state === 'input-available') {
+        return (
+          <span key={i} className="block text-sm italic text-muted-foreground">
+            Executando: {name.replace(/_/g, ' ')}...
+          </span>
+        );
+      }
+      if (state === 'output-available') {
+        return (
+          <span key={i} className="block text-sm text-green-600">
+            ✓ Concluído
+          </span>
+        );
+      }
+    }
+    return null;
+  });
+
+  return <span className="flex flex-col gap-0.5">{nodes}</span>;
 }
 
 export function ChatMessages({ messages, status }: ChatMessagesProps) {
@@ -39,7 +62,7 @@ export function ChatMessages({ messages, status }: ChatMessagesProps) {
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
       {messages.map((msg) => (
-        <ChatBubble key={msg.id} role={msg.role as 'user' | 'assistant'} content={getTextContent(msg)} />
+        <ChatBubble key={msg.id} role={msg.role as 'user' | 'assistant'} content={getMessageContent(msg)} />
       ))}
 
       {/* Streaming indicator only while awaiting first token (not during active streaming) */}

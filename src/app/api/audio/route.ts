@@ -65,11 +65,18 @@ export async function POST(req: Request) {
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const transcription = await openai.audio.transcriptions.create({
-    file,
-    model: 'whisper-1',
-    language: 'pt',
-  });
-
-  return NextResponse.json({ transcript: transcription.text });
+  try {
+    const transcription = await openai.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+      language: 'pt',
+    });
+    return NextResponse.json({ transcript: transcription.text });
+  } catch (err) {
+    console.error('[audio] Whisper error:', err);
+    return NextResponse.json(
+      { error: 'Erro ao transcrever áudio. Tente novamente.' },
+      { status: 500 },
+    );
+  }
 }

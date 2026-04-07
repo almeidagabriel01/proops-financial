@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
+
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
-  content: string;
+  content: ReactNode;
   isStreaming?: boolean;
 }
 

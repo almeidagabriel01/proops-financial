@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
+import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
@@ -89,6 +89,7 @@ export async function POST(req: Request) {
     system: systemPrompt,
     messages: modelMessages,
     tools,
+    stopWhen: stepCountIs(5),
     maxOutputTokens: 1024,
   });
 
