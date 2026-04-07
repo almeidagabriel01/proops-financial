@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -50,12 +50,30 @@ function Cell({ value }: { value: string | boolean }) {
 }
 
 export function PaywallModal({ open, onClose, feature }: PaywallModalProps) {
-  const router = useRouter();
   const featureLabel = feature ? (FEATURE_LABELS[feature] ?? feature) : null;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleUpgrade() {
-    onClose();
-    router.push('/settings?tab=plano');
+  async function handleUpgrade() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey: 'pro_monthly' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao iniciar checkout');
+      if (data.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -108,12 +126,17 @@ export function PaywallModal({ open, onClose, feature }: PaywallModalProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button onClick={handleUpgrade} className="w-full">
-            Assinar Pro
+          <Button onClick={handleUpgrade} disabled={loading} className="w-full">
+            {loading ? 'Aguarde...' : 'Assinar Pro'}
           </Button>
-          <Button variant="ghost" onClick={onClose} className="w-full">
+          <Button variant="ghost" onClick={onClose} disabled={loading} className="w-full">
             Agora não
           </Button>
+          {error && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

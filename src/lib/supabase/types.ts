@@ -315,8 +315,8 @@ export type Database = {
           id: string;
           user_id: string;
           asaas_subscription_id: string | null;
-          plan: 'monthly' | 'yearly';
-          status: 'active' | 'past_due' | 'canceled' | 'expired';
+          billing_cycle: 'monthly' | 'yearly';
+          status: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start: string | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
@@ -327,8 +327,8 @@ export type Database = {
           id?: string;
           user_id: string;
           asaas_subscription_id?: string | null;
-          plan: 'monthly' | 'yearly';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired';
+          billing_cycle: 'monthly' | 'yearly';
+          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
@@ -339,8 +339,8 @@ export type Database = {
           id?: string;
           user_id?: string;
           asaas_subscription_id?: string | null;
-          plan?: 'monthly' | 'yearly';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired';
+          billing_cycle?: 'monthly' | 'yearly';
+          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;

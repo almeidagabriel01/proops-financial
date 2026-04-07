@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 import { buildFinancialContext, checkAndResetRateLimit } from '@/lib/ai/chat';
 import { buildSystemPrompt } from '@/lib/ai/prompts/chat-system';
+import { isWithinGracePeriod } from '@/lib/billing/webhook-handler';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -32,7 +33,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'rate_limit_exceeded' }, { status: 429 });
   }
 
-  const tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
+  let tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
+
+  // AC7: grace period — past_due subscription keeps Pro access for 3 days
+  if (tier !== 'pro') {
+    const { data: pastDueSub } = await supabase
+      .from('subscriptions')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .eq('status', 'past_due')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pastDueSub && isWithinGracePeriod(pastDueSub.updated_at)) {
+      tier = 'pro';
+    }
+  }
+
   const model = tier === 'pro' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
 
   const { messages }: { messages: UIMessage[] } = await req.json();
