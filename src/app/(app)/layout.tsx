@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from '@/components/logout-button';
 import { BottomNav } from '@/components/layout/bottom-nav';
+import { TrialBanner } from '@/components/layout/trial-banner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -16,6 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <TrialBanner />
       <header className="border-b border-border bg-card px-4 py-3">
         <div className="mx-auto flex max-w-screen-lg items-center justify-between">
           <div className="flex items-center gap-2">

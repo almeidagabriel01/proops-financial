@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { FileDropzone } from '@/components/import/file-dropzone';
 import { ImportProgress, type ImportStatus } from '@/components/import/import-progress';
 import { Button } from '@/components/ui/button';
+import { usePlan } from '@/hooks/use-plan';
+import { PaywallModal } from '@/components/layout/paywall-modal';
 
 const BANK_OPTIONS = [
   { value: 'Nubank', label: 'Nubank' },
@@ -26,6 +28,9 @@ export default function ImportPage() {
   const [duplicatesSkipped, setDuplicatesSkipped] = useState<number | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  const { isBasic, maxBankAccounts } = usePlan();
 
   // Stable client ref — prevents useEffect dependency churn on re-renders
   const supabaseRef = useRef(createClient());
@@ -117,6 +122,18 @@ export default function ImportPage() {
   const handleImport = useCallback(async () => {
     if (!selectedFile) return;
 
+    // AC4: Enforce bank account limit for Basic plan
+    if (isBasic) {
+      const { count } = await supabase
+        .from('bank_accounts')
+        .select('*', { count: 'exact', head: true });
+
+      if ((count ?? 0) >= maxBankAccounts) {
+        setPaywallOpen(true);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setImportStatus('uploading');
     setErrorMessage(undefined);
@@ -149,7 +166,7 @@ export default function ImportPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedFile, bankName]);
+  }, [selectedFile, bankName, isBasic, maxBankAccounts, supabase]);
 
   function handleReset() {
     setSelectedFile(null);
@@ -167,6 +184,11 @@ export default function ImportPage() {
 
   return (
     <div className="mx-auto max-w-screen-sm px-4 py-6">
+      <PaywallModal
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        feature="accounts"
+      />
       <div className="mb-6">
         <h1 className="text-xl font-bold text-foreground">Importar Extrato</h1>
         <p className="mt-1 text-sm text-muted-foreground">
