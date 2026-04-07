@@ -1,3 +1,15 @@
+// Mirrors SQL normalize_description() and src/lib/ai/categorizer.ts
+// Used client-side for category_dictionary lookups (same normalization, same key)
+export function normalizeDescription(raw: string): string {
+  return raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
