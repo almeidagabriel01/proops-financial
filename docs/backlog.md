@@ -98,6 +98,48 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
+## Tech Debt — Story 4.4 (PWA & Performance)
+
+### M1 — PWAInstallBanner usa sessionStorage para dismissal
+
+**Prioridade:** Baixa
+**Origem:** Story 4.4 M1 (QA Review 2026-04-07)
+**Arquivo:** `src/components/layout/pwa-install-banner.tsx`
+**Descrição:** `DISMISSED_KEY` armazenado em `sessionStorage` — ao fechar e reabrir o browser o banner reaparece, mesmo que o usuário já tenha dispensado. `localStorage` seria mais adequado para dismissal permanente e experiência não-intrusiva.
+**Fix:** Trocar `sessionStorage` por `localStorage` para o `DISMISSED_KEY`.
+
+---
+
+### M2 — SW disable usa `=== 'development'` em vez de `!== 'production'`
+
+**Prioridade:** Baixa
+**Origem:** Story 4.4 M2 (QA Review 2026-04-07)
+**Arquivo:** `next.config.ts`
+**Descrição:** `disable: process.env.NODE_ENV === 'development'` — o service worker NÃO é desabilitado em `NODE_ENV === 'test'`. Sem impacto prático (testes unitários não constroem SW), mas tecnicamente impreciso.
+**Fix:** `disable: process.env.NODE_ENV !== 'production'`
+
+---
+
+### M3 — lighthouserc.js: `preset: 'desktop'` conflita com `formFactor: 'mobile'`
+
+**Prioridade:** Baixa
+**Origem:** Story 4.4 M3 (QA Review 2026-04-07)
+**Arquivo:** `lighthouserc.js`
+**Descrição:** `preset: 'desktop'` define defaults de desktop que são parcialmente sobrescritos por `formFactor: 'mobile'` e `screenEmulation` explícitos. Configuração inconsistente que pode gerar resultados unreliable.
+**Status:** ✅ Corrigido em commit junto com Story 4.5 (linha `preset: 'desktop'` removida).
+
+---
+
+### M4 — `npm run lighthouse` usa dev server (SW desabilitado)
+
+**Prioridade:** Baixa
+**Origem:** Story 4.4 M4 (QA Review 2026-04-07)
+**Arquivo:** `lighthouserc.js`
+**Descrição:** `startServerCommand: 'npm run dev'` inicia Turbopack com SW desabilitado (`NODE_ENV === 'development'`). Audit PWA e performance não representam produção.
+**Fix:** Usar `startServerCommand: 'npm run build && npm run start'` para audit com SW ativo.
+
+---
+
 ## Tech Debt — Story 4.2 (LGPD, Gestão de Dados & Offline)
 
 ### m1 — a.click() sem append ao DOM no export de dados

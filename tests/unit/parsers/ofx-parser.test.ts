@@ -101,6 +101,38 @@ describe('parseOFX', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it('usa TRNTYPE=DEBIT para definir tipo débito explicitamente', () => {
+    const content = `
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20240115
+<TRNAMT>-100.00
+<FITID>DEBIT001
+<NAME>Pagamento boleto
+</STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+    const [tx] = parseOFX(content);
+    expect(tx.type).toBe('debit');
+    expect(tx.amount).toBe(-100);
+  });
+
+  it('usa amount para inferir tipo quando TRNTYPE é desconhecido', () => {
+    const content = `
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>OTHER
+<DTPOSTED>20240115
+<TRNAMT>250.00
+<FITID>OTHER001
+<NAME>Transferência recebida
+</STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+    const [tx] = parseOFX(content);
+    expect(tx.type).toBe('credit');
+    expect(tx.amount).toBe(250);
+  });
+
   it('handles triple FITID collision appending _2 and _3', () => {
     const content = `
 <OFX>

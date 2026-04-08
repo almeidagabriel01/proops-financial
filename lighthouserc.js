@@ -9,7 +9,6 @@ module.exports = {
       numberOfRuns: 1,
       settings: {
         // Simulate mobile device (Moto G4)
-        preset: 'desktop',
         formFactor: 'mobile',
         screenEmulation: {
           mobile: true,
