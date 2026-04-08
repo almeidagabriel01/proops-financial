@@ -8,8 +8,13 @@ interface OnboardingBannerProps {
 }
 
 export function OnboardingBanner({ show }: OnboardingBannerProps) {
+  const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    queueMicrotask(() => setMounted(true));
+  }, []);
 
   useEffect(() => {
     if (!show) return;
@@ -17,7 +22,7 @@ export function OnboardingBanner({ show }: OnboardingBannerProps) {
     return () => clearTimeout(timer);
   }, [show]);
 
-  if (!show || dismissed) return null;
+  if (!mounted || !show || dismissed) return null;
 
   const handleDismiss = () => setDismissed(true);
 

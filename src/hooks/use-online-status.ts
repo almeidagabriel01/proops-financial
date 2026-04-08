@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react';
 
 export function useOnlineStatus(): boolean {
-  // Lazy initializer reads navigator.onLine once on mount (SSR-safe default: true)
-  const [isOnline, setIsOnline] = useState<boolean>(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  // Always start as true — matches SSR output and avoids hydration mismatch.
+  // Real value is synced after mount via useEffect.
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    // Sync actual status on mount before subscribing to events.
+    // queueMicrotask avoids synchronous setState-in-effect lint warning.
+    queueMicrotask(() => setIsOnline(navigator.onLine));
+
     function handleOnline() {
       setIsOnline(true);
     }

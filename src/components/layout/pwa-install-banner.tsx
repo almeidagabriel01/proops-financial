@@ -9,10 +9,15 @@ const DISMISSED_KEY = 'finansim_pwa_dismissed';
 
 export function PWAInstallBanner() {
   const { canInstall, install } = usePWAInstall();
+  const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (!canInstall) return;
+    queueMicrotask(() => setMounted(true));
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !canInstall) return;
     if (sessionStorage.getItem(DISMISSED_KEY)) return;
 
     // Increment visit count
@@ -23,7 +28,7 @@ export function PWAInstallBanner() {
       // queueMicrotask avoids synchronous setState-in-effect lint warning
       queueMicrotask(() => setShow(true));
     }
-  }, [canInstall]);
+  }, [mounted, canInstall]);
 
   if (!show) return null;
 
