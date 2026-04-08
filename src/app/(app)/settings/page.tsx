@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { usePlan } from '@/hooks/use-plan';
 import { useUser } from '@/hooks/use-user';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 
 // Note: metadata export doesn't work in 'use client' — moved to separate layout if needed
 // For now, page title is set in the <title> via head
-const TABS = ['perfil', 'plano'] as const;
+const TABS = ['perfil', 'plano', 'dados'] as const;
 type Tab = (typeof TABS)[number];
 
 function ProfileTab() {
@@ -266,6 +267,158 @@ function PlanTab() {
   );
 }
 
+function DadosTab() {
+  const router = useRouter();
+  const [exportLoading, setExportLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleExport() {
+    setExportLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/user/export');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? 'Erro ao exportar dados');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? 'meus-dados-finansim.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/user/account', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? 'Erro ao excluir conta');
+      }
+      // Sign out locally then redirect to login with confirmation
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/login?deleted=true');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir conta');
+      setDeleteLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Export */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Exportar meus dados</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Baixe todos os seus dados em formato JSON (LGPD art. 18, III — portabilidade).
+        </p>
+        <Button
+          variant="outline"
+          className="mt-3 w-full"
+          disabled={exportLoading}
+          onClick={handleExport}
+        >
+          {exportLoading ? 'Exportando...' : 'Baixar dados (JSON)'}
+        </Button>
+      </div>
+
+      {/* Legal links */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Documentos legais</p>
+        <ul className="mt-2 space-y-2">
+          <li>
+            <Link href="/privacy" className="text-sm text-primary hover:underline">
+              Política de Privacidade
+            </Link>
+          </li>
+          <li>
+            <Link href="/terms" className="text-sm text-primary hover:underline">
+              Termos de Uso
+            </Link>
+          </li>
+        </ul>
+      </div>
+
+      {/* Delete account */}
+      <div className="rounded-xl border border-destructive/30 bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Excluir conta</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Todos os seus dados serão removidos permanentemente e imediatamente. Esta ação não pode ser desfeita (LGPD art. 18, VI — eliminação).
+        </p>
+        {!deleteConfirm ? (
+          <Button
+            variant="outline"
+            className="mt-3 w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
+            disabled={deleteLoading}
+            onClick={() => setDeleteConfirm(true)}
+          >
+            Excluir minha conta
+          </Button>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Esta ação é <strong className="text-destructive">irreversível</strong>. Todas as suas transações, orçamentos, objetivos e histórico serão removidos permanentemente.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="delete-confirm" className="text-sm font-medium text-foreground">
+                Digite <strong>EXCLUIR</strong> para confirmar:
+              </label>
+              <input
+                id="delete-confirm"
+                type="text"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder="EXCLUIR"
+                className="h-9 w-full rounded-lg border border-destructive/50 bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/50 disabled:opacity-50"
+                disabled={deleteLoading}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={deleteLoading || deleteInput !== 'EXCLUIR'}
+                onClick={handleDeleteAccount}
+              >
+                {deleteLoading ? 'Excluindo...' : 'Confirmar exclusão'}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={deleteLoading}
+                onClick={() => { setDeleteConfirm(false); setDeleteInput(''); }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -297,12 +450,14 @@ export default function SettingsPage() {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'perfil' ? 'Perfil' : 'Plano'}
+            {tab === 'perfil' ? 'Perfil' : tab === 'plano' ? 'Plano' : 'Dados'}
           </button>
         ))}
       </div>
 
-      {activeTab === 'perfil' ? <ProfileTab /> : <PlanTab />}
+      {activeTab === 'perfil' && <ProfileTab />}
+      {activeTab === 'plano' && <PlanTab />}
+      {activeTab === 'dados' && <DadosTab />}
     </div>
   );
 }

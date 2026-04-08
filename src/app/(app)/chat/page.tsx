@@ -15,6 +15,7 @@ export default function ChatPage() {
   const { aiMonthlyLimit, canUseAudio } = usePlan();
   const { initialMessages, historyLoading, saveMessage } = useChatHistory(user?.id ?? null);
   const [input, setInput] = useState('');
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
   const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
@@ -34,6 +35,16 @@ export default function ChatPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyLoading]);
+
+  // Show warning when streaming takes > 30s (AI may be slow)
+  useEffect(() => {
+    if (status !== 'streaming' && status !== 'submitted') {
+      setShowTimeoutWarning(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowTimeoutWarning(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const isLoading = status === 'submitted' || status === 'streaming';
   const queriesUsed = profile?.ai_queries_this_month ?? 0;
@@ -68,6 +79,15 @@ export default function ChatPage() {
       </div>
 
       <ChatMessages messages={messages} status={status} />
+
+      {showTimeoutWarning && (
+        <div
+          role="alert"
+          className="mx-4 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+        >
+          A resposta está demorando mais que o esperado. A IA pode estar processando uma pergunta complexa.
+        </div>
+      )}
 
       <ChatInput
         value={input}

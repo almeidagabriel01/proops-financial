@@ -190,6 +190,18 @@ export default function SignupPage() {
             Entrar
           </Link>
         </p>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Ao criar sua conta, você concorda com os{' '}
+          <Link href="/terms" className="text-primary hover:underline">
+            Termos de Uso
+          </Link>{' '}
+          e a{' '}
+          <Link href="/privacy" className="text-primary hover:underline">
+            Política de Privacidade
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );

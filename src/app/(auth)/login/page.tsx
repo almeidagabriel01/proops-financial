@@ -1,14 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getAuthError } from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const accountDeleted = searchParams.get('deleted') === 'true';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -68,6 +78,15 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
+        {accountDeleted && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent-foreground"
+          >
+            Sua conta foi excluída com sucesso. Todos os seus dados foram removidos permanentemente.
+          </div>
+        )}
+
         <div className="mb-8 flex flex-col items-center gap-2 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold text-primary-foreground">
             F
@@ -146,6 +165,16 @@ export default function LoginPage() {
           Não tem conta?{' '}
           <Link href="/signup" className="font-medium text-primary hover:underline">
             Criar conta
+          </Link>
+        </p>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          <Link href="/privacy" className="text-primary hover:underline">
+            Política de Privacidade
+          </Link>
+          {' · '}
+          <Link href="/terms" className="text-primary hover:underline">
+            Termos de Uso
           </Link>
         </p>
       </div>
