@@ -22,6 +22,11 @@ logs/
 out/
 next-env.d.ts
 
+# Test output
+coverage/
+test-results/
+playwright-report/
+
 # Supabase
 .supabase/
 supabase/.temp/
