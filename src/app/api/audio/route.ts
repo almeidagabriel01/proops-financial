@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
@@ -74,6 +75,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ transcript: transcription.text });
   } catch (err) {
     console.error('[audio] Whisper error:', err);
+    Sentry.captureException(err, {
+      extra: { userId: user.id, operation: 'audio_transcription' },
+    });
     return NextResponse.json(
       { error: 'Erro ao transcrever áudio. Tente novamente.' },
       { status: 500 },

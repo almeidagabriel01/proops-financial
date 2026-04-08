@@ -95,3 +95,45 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 ---
 
 *Última atualização: 2026-04-07*
+
+---
+
+## Tech Debt — Story 4.2 (LGPD, Gestão de Dados & Offline)
+
+### m1 — a.click() sem append ao DOM no export de dados
+
+**Prioridade:** Baixa
+**Origem:** Story 4.2 m1 (QA Review 2026-04-07)
+**Arquivo:** `src/app/(app)/settings/page.tsx` — `handleExport()`
+**Descrição:** Download do JSON usa `a.click()` sem `document.body.appendChild(a)`. Funcional em Chrome/Android (85% do mercado-alvo), mas padrão não-canônico que pode falhar em browsers antigos.
+**Fix:** `document.body.appendChild(a); a.click(); document.body.removeChild(a);`
+
+---
+
+### m2 — Timer de timeout do chat reinicia em transição submitted→streaming
+
+**Prioridade:** Baixa
+**Origem:** Story 4.2 m2 (QA Review 2026-04-07)
+**Arquivo:** `src/app/(app)/chat/page.tsx`
+**Descrição:** useEffect com `[status]` reseta o timer de 30s na transição de status. AC especifica "30s sem novos tokens" (tracking de chegada de tokens), mas implementação monitora status. Comportamento correto na prática; desvio semântico.
+**Fix:** Rastrear chegada de tokens via evento do stream, não transições de status.
+
+---
+
+### m3 — Cache offline não implementado (AC4 parcial — Story 4.2)
+
+**Prioridade:** Média
+**Origem:** Story 4.2 m3 (QA Review 2026-04-07)
+**Descrição:** Banner offline implementado mas sem: cache React Query para dashboard em modo offline; mensagem "Sem conexão" nos formulários de chat e import quando offline.
+**Fix:** Configurar `staleTime` no React Query + verificação `isOnline` nos formulários.
+
+---
+
+### m4 — Teste de ownership ausente em DELETE /api/user/account
+
+**Prioridade:** Baixa
+**Origem:** Story 4.2 m4 (QA Review 2026-04-07)
+**Arquivo:** `tests/unit/api/user-delete.test.ts`
+**Descrição:** Teste de deleção não verifica que usuário A não pode deletar conta de usuário B. Proteção existe via server-side auth; falta cobertura de teste.
+**Fix:** Adicionar teste documentando que queries usam user_id do auth context, não de parâmetros da request.
+

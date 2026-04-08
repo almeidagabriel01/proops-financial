@@ -1,7 +1,9 @@
+import * as Sentry from '@sentry/nextjs';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { parseOFX } from '@/lib/parsers/ofx-parser';
 import { parseCSV } from '@/lib/parsers/csv-parser';
+import { trackImportCompleted } from '@/lib/analytics/events';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -36,6 +38,9 @@ export async function POST(request: Request) {
     console.warn('[import] Etapa 1: user not found');
     return Response.json({ error: 'Não autorizado' }, { status: 401 });
   }
+
+  // Set Sentry user context
+  Sentry.setUser({ id: user.id });
   console.log('[import] Etapa 1 OK — userId:', user.id);
 
   // ── Etapa 2: Validação do arquivo ───────────────────────────
@@ -253,6 +258,7 @@ export async function POST(request: Request) {
     .eq('id', bankAccountId);
 
   // ── Etapa 7: Invoke Edge Function (fire-and-forget) ─────────
+  const importStart = Date.now();
   console.log('[import] Etapa 7 invoking categorize-import — importId:', importId);
   getInvokeClient().functions
     .invoke('categorize-import', {
@@ -264,6 +270,13 @@ export async function POST(request: Request) {
     .catch((err: unknown) => {
       console.error('[import] Etapa 7 Edge Function invoke failed:', err);
     });
+
+  // Analytics: track import completed (fire-and-forget)
+  trackImportCompleted(getInvokeClient(), user.id, {
+    file_format: ext as 'ofx' | 'csv',
+    transaction_count: newTransactions.length,
+    duration_ms: Date.now() - importStart,
+  });
 
   return Response.json({
     importId,

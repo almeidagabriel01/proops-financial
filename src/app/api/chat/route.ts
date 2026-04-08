@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
@@ -7,6 +8,7 @@ import { buildFinancialContext, checkAndResetRateLimit } from '@/lib/ai/chat';
 import { buildSystemPrompt } from '@/lib/ai/prompts/chat-system';
 import { isWithinGracePeriod } from '@/lib/billing/webhook-handler';
 import { makeProTools } from '@/lib/ai/tools';
+import { trackChatMessageSent } from '@/lib/analytics/events';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -18,6 +20,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Set Sentry user context for error reports
+  Sentry.setUser({ id: user.id });
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('plan, trial_ends_at, audio_enabled, ai_queries_this_month, ai_queries_reset_at')
@@ -25,6 +30,9 @@ export async function POST(req: Request) {
     .single();
 
   if (!profile) {
+    Sentry.captureException(new Error('Profile not found after auth'), {
+      extra: { userId: user.id, operation: 'chat_stream' },
+    });
     return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
   }
 
@@ -66,6 +74,14 @@ export async function POST(req: Request) {
     .from('profiles')
     .update({ ai_queries_this_month: queriesUsed + 1 })
     .eq('id', user.id);
+
+  // Analytics: track chat message (fire-and-forget)
+  const supabaseAdminForAnalytics = await createServiceClient();
+  trackChatMessageSent(supabaseAdminForAnalytics, user.id, {
+    plan: profile.plan ?? 'free',
+    model: tier === 'pro' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    query_count_after: queriesUsed + 1,
+  });
 
   // Stub mode — ANTHROPIC_API_KEY not configured
   if (!process.env.ANTHROPIC_API_KEY) {

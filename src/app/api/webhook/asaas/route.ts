@@ -1,5 +1,6 @@
 import { timingSafeEqual, createHash } from 'crypto';
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { createServiceClient } from '@/lib/supabase/server';
 import { handleAsaasWebhook, type AsaasWebhookEvent } from '@/lib/billing/webhook-handler';
 
@@ -17,9 +18,17 @@ export async function POST(req: Request) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const event = (await req.json()) as AsaasWebhookEvent;
-  const supabase = await createServiceClient();
-  await handleAsaasWebhook(event, supabase);
+  try {
+    const event = (await req.json()) as AsaasWebhookEvent;
+    const supabase = await createServiceClient();
+    await handleAsaasWebhook(event, supabase);
+  } catch (err) {
+    Sentry.captureException(err, {
+      extra: { operation: 'asaas_webhook' },
+    });
+    // Still return 200 — Asaas retries on non-2xx, leading to duplicate processing
+    console.error('[webhook/asaas] Unexpected error:', err);
+  }
 
   return new NextResponse('OK', { status: 200 });
 }
