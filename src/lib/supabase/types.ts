@@ -16,6 +16,7 @@ export type Database = {
           audio_enabled: boolean;
           ai_queries_this_month: number;
           ai_queries_reset_at: string;
+          onboarding_completed: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -28,6 +29,7 @@ export type Database = {
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
+          onboarding_completed?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -40,6 +42,7 @@ export type Database = {
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
+          onboarding_completed?: boolean;
           created_at?: string;
           updated_at?: string;
         };

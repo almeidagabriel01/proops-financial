@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from '@/components/logout-button';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { TrialBanner } from '@/components/layout/trial-banner';
+import { OnboardingBanner } from '@/components/layout/onboarding-banner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -15,9 +16,33 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login');
   }
 
+  // Onboarding check — runs for all (app) routes
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('onboarding_completed, display_name')
+    .eq('id', user.id)
+    .single();
+
+  const { count: transactionCount } = await supabase
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id);
+
+  const onboardingCompleted = profile?.onboarding_completed ?? false;
+  const hasTransactions = (transactionCount ?? 0) > 0;
+
+  // New user with no data → force onboarding
+  if (!onboardingCompleted && !hasTransactions) {
+    redirect('/onboarding');
+  }
+
+  // Existing user with data but onboarding never completed → show banner (no forced redirect)
+  const showOnboardingBanner = !onboardingCompleted && hasTransactions;
+
   return (
     <div className="flex min-h-dvh flex-col">
       <TrialBanner />
+      <OnboardingBanner show={showOnboardingBanner} />
       <header className="border-b border-border bg-card px-4 py-3">
         <div className="mx-auto flex max-w-screen-lg items-center justify-between">
           <div className="flex items-center gap-2">
