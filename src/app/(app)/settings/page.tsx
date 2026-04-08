@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import * as Sentry from '@sentry/nextjs';
 import { usePlan } from '@/hooks/use-plan';
 import { useUser } from '@/hooks/use-user';
 import { Button } from '@/components/ui/button';
@@ -311,6 +312,7 @@ function DadosTab() {
       }
       // Sign out locally then redirect to login with confirmation
       const supabase = createClient();
+      Sentry.setUser(null);
       await supabase.auth.signOut();
       router.push('/login?deleted=true');
     } catch (err) {
