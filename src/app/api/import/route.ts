@@ -41,7 +41,6 @@ export async function POST(request: Request) {
 
   // Set Sentry user context
   Sentry.setUser({ id: user.id });
-  console.log('[import] Etapa 1 OK — userId:', user.id);
 
   // ── Etapa 2: Validação do arquivo ───────────────────────────
   let file: File;
@@ -70,7 +69,6 @@ export async function POST(request: Request) {
         { status: 413 },
       );
     }
-    console.log('[import] Etapa 2 OK — file:', file.name, 'size:', file.size, 'ext:', ext, 'bank:', bankName);
   } catch (err) {
     console.error('[import] Etapa 2 EXCEPTION:', err);
     return Response.json({ error: 'Requisição inválida' }, { status: 400 });
@@ -101,7 +99,6 @@ export async function POST(request: Request) {
       }
       bankAccountId = newAccount.id;
     }
-    console.log('[import] bank_account OK — id:', bankAccountId);
   } catch (err) {
     console.error('[import] bank_account EXCEPTION:', err);
     return Response.json({ error: 'Erro ao registrar conta bancária' }, { status: 500 });
@@ -131,7 +128,6 @@ export async function POST(request: Request) {
       console.error('[import] Etapa 4 import record error:', JSON.stringify(importError));
       return Response.json({ error: 'Erro ao registrar importação' }, { status: 500 });
     }
-    console.log('[import] Etapa 4 OK — importId:', importId, 'storagePath:', storagePath);
   } catch (err) {
     console.error('[import] Etapa 4 EXCEPTION:', err);
     return Response.json({ error: 'Erro ao registrar importação' }, { status: 500 });
@@ -141,9 +137,8 @@ export async function POST(request: Request) {
   try {
     const fileBuffer = await file.arrayBuffer();
     const contentType = file.type || (ext === 'ofx' ? 'application/x-ofx' : 'text/csv');
-    console.log('[import] Etapa 3 uploading — path:', storagePath, 'contentType:', contentType);
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('imports')
       .upload(storagePath, fileBuffer, { contentType });
 
@@ -155,7 +150,6 @@ export async function POST(request: Request) {
         .eq('id', importId);
       return Response.json({ error: 'Erro ao fazer upload do arquivo' }, { status: 500 });
     }
-    console.log('[import] Etapa 3 OK — uploaded:', uploadData.path);
   } catch (err) {
     console.error('[import] Etapa 3 EXCEPTION:', err);
     await supabase
@@ -169,14 +163,12 @@ export async function POST(request: Request) {
   let parsedTransactions: ReturnType<typeof parseOFX>;
   try {
     const content = await file.text();
-    console.log('[import] Etapa 5 parsing', ext.toUpperCase(), '— content length:', content.length);
 
     if (ext === 'ofx') {
       parsedTransactions = parseOFX(content);
     } else {
       parsedTransactions = parseCSV(content, bankName);
     }
-    console.log('[import] Etapa 5 OK — parsed', parsedTransactions.length, 'transactions');
   } catch (err) {
     console.error('[import] Etapa 5 parse error:', err);
     await supabase
@@ -205,7 +197,6 @@ export async function POST(request: Request) {
     const existingIds = new Set((existingTxs || []).map((t) => t.external_id));
     newTransactions = parsedTransactions.filter((t) => !existingIds.has(t.external_id));
     duplicatesSkipped = parsedTransactions.length - newTransactions.length;
-    console.log('[import] Etapa 6 dedup — new:', newTransactions.length, 'dupes:', duplicatesSkipped);
 
     if (newTransactions.length > 0) {
       const { error: insertError } = await supabase.from('transactions').insert(
@@ -231,7 +222,6 @@ export async function POST(request: Request) {
           .eq('id', importId);
         return Response.json({ error: 'Erro ao salvar transações' }, { status: 500 });
       }
-      console.log('[import] Etapa 6 OK — inserted', newTransactions.length, 'transactions');
     }
   } catch (err) {
     console.error('[import] Etapa 6 EXCEPTION:', err);
@@ -259,13 +249,9 @@ export async function POST(request: Request) {
 
   // ── Etapa 7: Invoke Edge Function (fire-and-forget) ─────────
   const importStart = Date.now();
-  console.log('[import] Etapa 7 invoking categorize-import — importId:', importId);
   getInvokeClient().functions
     .invoke('categorize-import', {
       body: { importId, userId: user.id },
-    })
-    .then(({ data, error }) => {
-      console.log('[import] Etapa 7 Edge Function result:', JSON.stringify({ data, error }));
     })
     .catch((err: unknown) => {
       console.error('[import] Etapa 7 Edge Function invoke failed:', err);

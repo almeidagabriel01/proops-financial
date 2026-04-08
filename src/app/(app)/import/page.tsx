@@ -51,7 +51,6 @@ export default function ImportPage() {
           filter: `id=eq.${importId}`,
         },
         (payload) => {
-          console.log('[import] Realtime event received:', payload.new);
           const newStatus = payload.new.status as ImportStatus;
           setImportStatus(newStatus);
           if (newStatus === 'completed') {
@@ -63,9 +62,7 @@ export default function ImportPage() {
           }
         },
       )
-      .subscribe((status) => {
-        console.log('[import] Realtime channel status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -80,7 +77,6 @@ export default function ImportPage() {
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     const startPolling = () => {
-      console.log('[import] Realtime timeout — starting polling fallback');
       pollInterval = setInterval(async () => {
         const { data, error } = await supabase
           .from('imports')
@@ -95,7 +91,6 @@ export default function ImportPage() {
 
         if (!data || data.status === 'categorizing') return;
 
-        console.log('[import] Polling resolved status:', data.status);
         const resolvedStatus = data.status as ImportStatus;
         setImportStatus(resolvedStatus);
 

@@ -122,7 +122,7 @@ describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)
     expect(error).toBeNull();
   });
 
-  it('RLS: transações associadas ao user_id correto', async () => {
+  it('transações têm user_id correto (isolamento de dados — service role bypassa RLS)', async () => {
     const { data } = await supabase
       .from('transactions')
       .select('user_id')
