@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Stepper } from './_components/stepper';
@@ -15,7 +15,7 @@ type OnboardingStep = 1 | 2 | 3;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [step, setStep] = useState<OnboardingStep>(1);
   const [userName, setUserName] = useState('');
@@ -47,22 +47,35 @@ export default function OnboardingPage() {
     loadProfile();
   }, [supabase, router]);
 
-  async function markOnboardingComplete() {
+  async function markOnboardingComplete(): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase
+    if (!user) return false;
+    const { error } = await supabase
       .from('profiles')
       .update({ onboarding_completed: true })
       .eq('id', user.id);
+    if (error) {
+      console.error('[onboarding] Failed to mark complete:', error);
+      return false;
+    }
+    return true;
   }
 
   async function handleSkipAll() {
-    await markOnboardingComplete();
+    try {
+      await markOnboardingComplete();
+    } catch (error) {
+      console.error('[onboarding] handleSkipAll error:', error);
+    }
     router.push('/dashboard');
   }
 
   async function handleFinish() {
-    await markOnboardingComplete();
+    try {
+      await markOnboardingComplete();
+    } catch (error) {
+      console.error('[onboarding] handleFinish error:', error);
+    }
     router.push('/dashboard');
   }
 

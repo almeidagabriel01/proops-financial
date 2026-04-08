@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface OnboardingBannerProps {
@@ -11,15 +11,15 @@ export function OnboardingBanner({ show }: OnboardingBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    if (!show) return;
+    const timer = setTimeout(() => setDismissed(true), 8000);
+    return () => clearTimeout(timer);
+  }, [show]);
+
   if (!show || dismissed) return null;
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    // Auto-dismiss after 8s is handled client-side
-  };
-
-  // Auto-dismiss after 8 seconds
-  setTimeout(handleDismiss, 8000);
+  const handleDismiss = () => setDismissed(true);
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-blue-200 bg-blue-50 px-4 py-2.5 dark:border-blue-800 dark:bg-blue-950">

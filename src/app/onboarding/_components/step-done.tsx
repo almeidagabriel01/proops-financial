@@ -8,8 +8,8 @@ interface StepDoneProps {
 export function StepDone({ importedData, onFinish }: StepDoneProps) {
   return (
     <div className="flex flex-col items-center gap-6 text-center">
-      {/* Success icon with CSS animation */}
-      <div className="success-icon flex h-24 w-24 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
+      {/* Success icon with CSS animation (class defined in globals.css) */}
+      <div className="animate-pop-in flex h-24 w-24 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
         <svg
           className="h-12 w-12 text-green-600 dark:text-green-400"
           fill="none"
@@ -20,15 +20,6 @@ export function StepDone({ importedData, onFinish }: StepDoneProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
-
-      <style>{`
-        @keyframes pop-in {
-          0% { transform: scale(0.5); opacity: 0; }
-          80% { transform: scale(1.1); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        .success-icon { animation: pop-in 0.4s ease forwards; }
-      `}</style>
 
       <div>
         <h2 className="text-2xl font-bold text-foreground">
