@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/layout/bottom-nav';
 import { TrialBanner } from '@/components/layout/trial-banner';
 import { OnboardingBanner } from '@/components/layout/onboarding-banner';
 import { OfflineBanner } from '@/components/layout/offline-banner';
+import { PWAInstallBanner } from '@/components/layout/pwa-install-banner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -43,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh flex-col">
       <OfflineBanner />
+      <PWAInstallBanner />
       <TrialBanner />
       <OnboardingBanner show={showOnboardingBanner} />
       <header className="border-b border-border bg-card px-4 py-3">

@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { SummaryCards } from '@/components/dashboard/summary-cards';
-import { SpendingChart } from '@/components/dashboard/spending-chart';
-import { CategoryChart } from '@/components/dashboard/category-chart';
 import { SpendingBreakdown } from '@/components/dashboard/spending-breakdown';
 import { CategoryCards } from '@/components/dashboard/category-cards';
 import { PeriodSelector } from '@/components/dashboard/period-selector';
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state';
+// Charts loaded via client-side lazy wrapper (ssr:false requires Client Component)
+import { SpendingChartLazy as SpendingChart, CategoryChartLazy as CategoryChart } from '@/components/dashboard/charts-lazy';
 import { Loader2 } from 'lucide-react';
 import {
   getMonthBounds,
