@@ -23,22 +23,25 @@ import type { Category } from '@/lib/billing/plans';
 type PeriodKey = 'current' | 'previous' | 'custom';
 type TypeFilter = 'all' | 'credit' | 'debit';
 
+const VALID_PERIODS: PeriodKey[] = ['current', 'previous', 'custom'];
+const VALID_TYPES: TypeFilter[] = ['all', 'credit', 'debit'];
+
 function getPeriodDates(
   period: PeriodKey,
   customStart?: string,
   customEnd?: string,
-): { start?: string; end?: string } {
+): { startDate?: string; endDate?: string } {
   if (period === 'current') {
     const { start, end } = getMonthBounds();
-    return { start, end };
+    return { startDate: start, endDate: end };
   }
   if (period === 'previous') {
     const { start, end } = getPrevMonthBounds();
-    return { start, end };
+    return { startDate: start, endDate: end };
   }
   // custom: only apply when both dates are set
   if (period === 'custom' && customStart && customEnd) {
-    return { start: customStart, end: customEnd };
+    return { startDate: customStart, endDate: customEnd };
   }
   return {};
 }
@@ -47,8 +50,10 @@ export default function TransactionsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialPeriod = (searchParams.get('period') as PeriodKey) ?? 'current';
-  const initialType = (searchParams.get('type') as TypeFilter) ?? 'all';
+  const rawPeriod = searchParams.get('period') as PeriodKey;
+  const initialPeriod = VALID_PERIODS.includes(rawPeriod) ? rawPeriod : 'current';
+  const rawType = searchParams.get('type') as TypeFilter;
+  const initialType = VALID_TYPES.includes(rawType) ? rawType : 'all';
   const initialSearch = searchParams.get('search') ?? '';
   const initialCustomStart = searchParams.get('start') ?? '';
   const initialCustomEnd = searchParams.get('end') ?? '';
