@@ -42,12 +42,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showOnboardingBanner = !onboardingCompleted && hasTransactions;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <OfflineBanner />
       <PWAInstallBanner />
       <TrialBanner />
       <OnboardingBanner show={showOnboardingBanner} />
-      <header className="border-b border-border bg-card px-4 py-3">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-3">
         <div className="mx-auto flex max-w-screen-lg items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
@@ -58,8 +58,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <LogoutButton />
         </div>
       </header>
-      {/* pb-16 compensates bottom-nav height (AC8) */}
-      <main className="flex-1 pb-16">{children}</main>
+      {/* overflow-y-auto allows pages with long content to scroll inside main */}
+      <main className="flex flex-1 flex-col overflow-y-auto pb-16">{children}</main>
       <BottomNav />
       <Toaster position="bottom-center" richColors />
     </div>

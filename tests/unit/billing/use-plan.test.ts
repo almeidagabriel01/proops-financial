@@ -35,9 +35,9 @@ describe('computePlanCapabilities', () => {
       expect(caps.canUseFunctionCalling).toBe(false);
     });
 
-    it('retorna modelo Haiku e limite 50/mês', () => {
+    it('retorna modelo gemini-2.0-flash e limite 50/mês', () => {
       const caps = computePlanCapabilities(profile);
-      expect(caps.aiModel).toBe('claude-haiku-4-5-20251001');
+      expect(caps.aiModel).toBe('gemini-2.0-flash');
       expect(caps.aiMonthlyLimit).toBe(50);
     });
 
@@ -81,9 +81,9 @@ describe('computePlanCapabilities', () => {
       expect(caps.maxBankAccounts).toBe(Infinity);
     });
 
-    it('retorna modelo Sonnet e limite 200/mês', () => {
+    it('retorna modelo gemini-2.5-flash e limite 200/mês', () => {
       const caps = computePlanCapabilities(profile);
-      expect(caps.aiModel).toBe('claude-sonnet-4-6');
+      expect(caps.aiModel).toBe('gemini-2.5-flash');
       expect(caps.aiMonthlyLimit).toBe(200);
     });
   });

@@ -94,14 +94,14 @@ describe('trackChatMessageSent', () => {
     const client = makeMockClient();
     trackChatMessageSent(client, 'user-123', {
       plan: 'premium',
-      model: 'claude-sonnet-4-6',
+      model: 'gemini-2.5-flash',
       query_count_after: 5,
     });
 
     expect((client as ReturnType<typeof makeMockClient>)._insert).toHaveBeenCalledWith({
       user_id: 'user-123',
       event_name: 'chat_message_sent',
-      properties: { plan: 'premium', model: 'claude-sonnet-4-6', query_count_after: 5 },
+      properties: { plan: 'premium', model: 'gemini-2.5-flash', query_count_after: 5 },
     });
   });
 });

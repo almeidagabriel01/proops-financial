@@ -28,7 +28,7 @@ export function TransactionDetail({
   onCategoryUpdated,
 }: TransactionDetailProps) {
   const [mode, setMode] = useState<DetailMode>('view');
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sameIds, setSameIds] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export function TransactionDetail({
   }
 
   // ── Category selection → check duplicates ────────────────────────────────────
-  function handleCategorySelect(category: Category) {
+  function handleCategorySelect(category: string) {
     if (!tx) return;
     setSelectedCategory(category);
     setSaveError(null);
@@ -73,7 +73,7 @@ export function TransactionDetail({
   }
 
   // ── Persist correction (single or batch) ─────────────────────────────────────
-  function doSave(category: Category, transactionIds: string[]) {
+  function doSave(category: string, transactionIds: string[]) {
     if (!tx) return Promise.resolve();
     setMode('saving');
 

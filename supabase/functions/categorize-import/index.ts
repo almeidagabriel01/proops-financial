@@ -239,11 +239,32 @@ async function lookupGlobalCache(
   return results;
 }
 
-// ─── Tier 3: Keyword-rule stub ────────────────────────────────────────────────
-// Uses ordered keyword matching — no external API call.
-// Saves non-'outros' results to category_cache for Tier 2 reuse.
+// ─── Valid categories set (for response validation) ───────────────────────────
 
-async function categorizeBatchKeywords(
+const VALID_CATEGORIES = new Set([
+  'alimentacao', 'delivery', 'transporte', 'moradia', 'saude', 'educacao',
+  'lazer', 'compras', 'assinaturas', 'transferencias', 'salario',
+  'investimentos', 'impostos', 'outros',
+]);
+
+// ─── Tier 3: Gemini AI categorization (with keyword fallback) ─────────────────
+// Calls Google Gemini 2.0 Flash when GOOGLE_AI_API_KEY is set.
+// Falls back to keyword rules if key is missing or call fails.
+// Saves results to category_cache for Tier 2 reuse.
+
+const CATEGORIZE_SYSTEM = `Voce e um classificador de transacoes financeiras brasileiras.
+
+CATEGORIAS DISPONIVEIS:
+alimentacao, delivery, transporte, moradia, saude, educacao, lazer, compras,
+assinaturas, transferencias, salario, investimentos, impostos, outros
+
+REGRAS:
+- Responda APENAS com JSON valido, sem explicacao
+- Use a descricao para inferir a categoria
+- Na duvida, use "outros"
+- Considere o contexto brasileiro`;
+
+async function categorizeBatchGemini(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   transactions: PendingTransaction[],
@@ -251,31 +272,101 @@ async function categorizeBatchKeywords(
   const results = new Map<string, { category: string; confidence: number }>();
   if (transactions.length === 0) return results;
 
-  const cacheUpserts: { description_normalized: string; category: string; confidence: number }[] = [];
+  const apiKey = Deno.env.get('GOOGLE_AI_API_KEY');
 
-  for (const t of transactions) {
-    const { category, confidence } = categorizeByKeywords(t.description);
-    results.set(t.id, { category, confidence });
+  // No API key → fall through to keyword rules
+  if (!apiKey) {
+    console.log('[categorize-import] GOOGLE_AI_API_KEY not set, using keyword rules');
+    return categorizeBatchKeywords(supabase, transactions);
+  }
 
-    if (category !== 'outros') {
-      cacheUpserts.push({
-        description_normalized: normalizeDescription(t.description),
-        category,
-        confidence,
-      });
+  try {
+    const userMessage = `Classifique estas transacoes e responda APENAS com JSON no formato [{"id":"...","category":"...","confidence":0.95}]:\n${JSON.stringify(transactions.map((t) => ({ id: t.id, description: t.description, amount: t.amount })))}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: CATEGORIZE_SYSTEM }] },
+          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1024 },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      console.error('[categorize-import] Gemini API error:', response.status, await response.text());
+      return categorizeBatchKeywords(supabase, transactions);
     }
-  }
 
-  // Upsert into category_cache (fire-and-forget)
-  if (cacheUpserts.length > 0) {
-    supabase
-      .from('category_cache')
-      .upsert(cacheUpserts, { onConflict: 'description_normalized', ignoreDuplicates: false })
-      .then(({ error }: { error: unknown }) => {
-        if (error) console.error('[categorize-import] cache upsert error:', error);
-      });
-  }
+    const data = await response.json();
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) {
+      console.error('[categorize-import] Gemini empty response, falling back');
+      return categorizeBatchKeywords(supabase, transactions);
+    }
 
+    // deno-lint-ignore no-explicit-any
+    const parsed: { id: string; category: string; confidence: number }[] = JSON.parse(content) as any[];
+
+    const cacheUpserts: { description_normalized: string; category: string; confidence: number }[] = [];
+
+    for (const item of parsed) {
+      const tx = transactions.find((t) => t.id === item.id);
+      if (!tx) continue;
+
+      const category = VALID_CATEGORIES.has(item.category) ? item.category : 'outros';
+      const confidence = typeof item.confidence === 'number' ? item.confidence : 0.8;
+
+      results.set(item.id, { category, confidence });
+
+      if (category !== 'outros') {
+        cacheUpserts.push({ description_normalized: normalizeDescription(tx.description), category, confidence });
+      }
+    }
+
+    // Any transaction missing from Gemini response → keyword fallback
+    const missing = transactions.filter((t) => !results.has(t.id));
+    if (missing.length > 0) {
+      for (const t of missing) {
+        const { category, confidence } = categorizeByKeywords(t.description);
+        results.set(t.id, { category, confidence });
+        if (category !== 'outros') {
+          cacheUpserts.push({ description_normalized: normalizeDescription(t.description), category, confidence });
+        }
+      }
+    }
+
+    // Save to cache (fire-and-forget)
+    if (cacheUpserts.length > 0) {
+      supabase
+        .from('category_cache')
+        .upsert(cacheUpserts, { onConflict: 'description_normalized', ignoreDuplicates: false })
+        .then(({ error }: { error: unknown }) => {
+          if (error) console.error('[categorize-import] cache upsert error:', error);
+        });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('[categorize-import] Gemini call failed, falling back to keywords:', err);
+    return categorizeBatchKeywords(supabase, transactions);
+  }
+}
+
+// ─── Keyword-only fallback (no cache write — called only when Gemini fails) ───
+
+function categorizeBatchKeywords(
+  // deno-lint-ignore no-explicit-any
+  _supabase: any,
+  transactions: PendingTransaction[],
+): Map<string, { category: string; confidence: number }> {
+  const results = new Map<string, { category: string; confidence: number }>();
+  for (const t of transactions) {
+    results.set(t.id, categorizeByKeywords(t.description));
+  }
   return results;
 }
 
@@ -377,8 +468,8 @@ Deno.serve(async (req) => {
     const afterTier2 = afterTier1.filter((t) => !cacheHits.has(t.id));
     console.log('[categorize-import] Tier 2 hits:', cacheHits.size, 'remaining:', afterTier2.length);
 
-    // ── Tier 3: Keyword-rule stub ────────────────────────────────────────────
-    const aiResults = await categorizeBatchKeywords(supabase, afterTier2);
+    // ── Tier 3: Gemini AI (com fallback para keyword rules) ─────────────────
+    const aiResults = await categorizeBatchGemini(supabase, afterTier2);
     console.log('[categorize-import] Tier 3 categorized:', aiResults.size);
 
     // ── Build and save all updates ───────────────────────────────────────────

@@ -1,13 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
-import { CATEGORIES } from '@/lib/billing/plans';
-import type { Category } from '@/lib/billing/plans';
+import { sanitizeCategory } from '@/lib/utils/categories';
 
 interface CreateTransactionBody {
   date: string;
   description: string;
   amount: number;
   type: 'credit' | 'debit';
-  category: Category;
+  category: string;
   bank_account_id?: string;
 }
 
@@ -47,7 +46,8 @@ export async function POST(request: Request) {
   if (type !== 'credit' && type !== 'debit') {
     return Response.json({ error: 'Tipo inválido' }, { status: 400 });
   }
-  if (!CATEGORIES.includes(category as Category)) {
+  const sanitizedCategory = sanitizeCategory(category ?? '');
+  if (!sanitizedCategory) {
     return Response.json({ error: 'Categoria inválida' }, { status: 400 });
   }
 
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       description: description.trim(),
       amount: signedAmount,
       type,
-      category,
+      category: sanitizedCategory,
       category_source: 'user',
       category_confidence: null,
     })

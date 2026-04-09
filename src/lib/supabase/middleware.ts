@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 const AUTH_ONLY_ROUTES = ['/login', '/signup'];
+// Routes accessible without authentication
+const PUBLIC_ROUTES = ['/', '/offline', '/privacy', '/terms'];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -43,10 +45,10 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     !AUTH_ONLY_ROUTES.includes(pathname) &&
+    !PUBLIC_ROUTES.includes(pathname) &&
     !request.nextUrl.pathname.startsWith('/callback') &&
     !request.nextUrl.pathname.startsWith('/api/health') &&
-    !request.nextUrl.pathname.startsWith('/api/webhook') &&
-    request.nextUrl.pathname !== '/'
+    !request.nextUrl.pathname.startsWith('/api/webhook')
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

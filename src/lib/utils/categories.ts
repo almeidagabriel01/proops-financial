@@ -3,7 +3,7 @@
 
 import {
   Utensils, Package, Car, Home, Heart, BookOpen, Music, ShoppingBag,
-  Repeat, ArrowLeftRight, Banknote, TrendingUp, Receipt, MoreHorizontal,
+  Repeat, ArrowLeftRight, Banknote, TrendingUp, Receipt, MoreHorizontal, Tag,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Category } from '@/lib/billing/plans';
@@ -30,3 +30,35 @@ export const CATEGORY_CONFIG: Record<Category, CategoryConfig> = {
   impostos:       { icon: Receipt,        label: 'Impostos',       color: '#78716c' },
   outros:         { icon: MoreHorizontal, label: 'Outros',         color: '#9ca3af' },
 };
+
+// Fallback config for user-defined custom categories.
+const CUSTOM_FALLBACK: Omit<CategoryConfig, 'label'> = {
+  icon: Tag,
+  color: '#a78bfa',
+};
+
+/**
+ * Returns the CategoryConfig for any category string.
+ * Known predefined categories get their full config.
+ * User-defined custom categories get a generic config with the raw name capitalized as label.
+ */
+export function getCategoryConfig(category: string): CategoryConfig {
+  const known = CATEGORY_CONFIG[category as Category];
+  if (known) return known;
+
+  // Capitalize first letter for display
+  const label = category.charAt(0).toUpperCase() + category.slice(1);
+  return { ...CUSTOM_FALLBACK, label };
+}
+
+/**
+ * Sanitizes a category string before saving:
+ * - Trim whitespace
+ * - Lowercase
+ * - Max 50 chars
+ * - Falls back to 'outros' if empty after trim
+ */
+export function sanitizeCategory(raw: string): string {
+  const cleaned = raw.trim().toLowerCase().slice(0, 50);
+  return cleaned || 'outros';
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import type { Database } from '@/lib/supabase/types';
@@ -17,38 +17,62 @@ export function useUser(): UseUserResult {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Guard: resolve loading only once (INITIAL_SESSION + any subsequent events)
+  const resolvedRef = useRef(false);
 
   useEffect(() => {
     const supabase = createClient();
 
+    function resolveLoading() {
+      if (!resolvedRef.current) {
+        resolvedRef.current = true;
+        setLoading(false);
+      }
+    }
+
     async function fetchProfile(userId: string) {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      setProfile(data);
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        setProfile(data ?? null);
+      } catch {
+        setProfile(null);
+      }
     }
 
-    async function init() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) await fetchProfile(user.id);
-      setLoading(false);
-    }
+    // Safety net: force-resolve loading after 5s in case INITIAL_SESSION never fires.
+    const safetyTimer = setTimeout(resolveLoading, 5000);
 
-    init();
-
+    // onAuthStateChange is the correct pattern for client components with @supabase/ssr.
+    // INITIAL_SESSION fires synchronously when a session exists in cookie storage.
+    // Never call getSession()/getUser() directly in useEffect — they can hang.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      // Resolve loading immediately (before async profile fetch)
+      // so the skeleton clears as soon as auth state is known.
+      resolveLoading();
+      clearTimeout(safetyTimer);
+
+      if (currentUser) {
+        // fetchProfile is non-blocking: email shows immediately, name loads after.
+        fetchProfile(currentUser.id);
       } else {
         setProfile(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   return { user, profile, loading };

@@ -14,22 +14,19 @@ type HealthResponse = {
   timestamp: string;
   dependencies: {
     supabase: DependencyStatus;
-    anthropic: DependencyStatus;
-    openai: DependencyStatus;
+    googleAI: DependencyStatus;
     asaas: DependencyStatus;
   };
 };
 
 function computeOverallStatus(
   supabase: DependencyStatus,
-  anthropic: DependencyStatus,
-  openai: DependencyStatus,
+  googleAI: DependencyStatus,
   asaas: DependencyStatus,
 ): 'ok' | 'degraded' | 'error' {
   if (supabase.status === 'error') return 'error';
   const allConfigured =
-    anthropic.status === 'configured' &&
-    openai.status === 'configured' &&
+    googleAI.status === 'configured' &&
     asaas.status === 'configured';
   return allConfigured ? 'ok' : 'degraded';
 }
@@ -38,7 +35,6 @@ describe('Health Check — overall status logic', () => {
   it('returns ok when all dependencies are healthy', () => {
     const status = computeOverallStatus(
       { status: 'ok', latencyMs: 30 },
-      { status: 'configured' },
       { status: 'configured' },
       { status: 'configured' },
     );
@@ -50,25 +46,13 @@ describe('Health Check — overall status logic', () => {
       { status: 'error', latencyMs: 5000 },
       { status: 'configured' },
       { status: 'configured' },
-      { status: 'configured' },
     );
     expect(status).toBe('error');
   });
 
-  it('returns degraded when Supabase is ok but Anthropic key is missing', () => {
+  it('returns degraded when Google AI key is missing', () => {
     const status = computeOverallStatus(
       { status: 'ok', latencyMs: 45 },
-      { status: 'missing' },
-      { status: 'configured' },
-      { status: 'configured' },
-    );
-    expect(status).toBe('degraded');
-  });
-
-  it('returns degraded when OpenAI key is missing', () => {
-    const status = computeOverallStatus(
-      { status: 'ok' },
-      { status: 'configured' },
       { status: 'missing' },
       { status: 'configured' },
     );
@@ -79,7 +63,6 @@ describe('Health Check — overall status logic', () => {
     const status = computeOverallStatus(
       { status: 'ok' },
       { status: 'configured' },
-      { status: 'configured' },
       { status: 'missing' },
     );
     expect(status).toBe('degraded');
@@ -88,7 +71,6 @@ describe('Health Check — overall status logic', () => {
   it('error takes priority over degraded when Supabase is down and keys missing', () => {
     const status = computeOverallStatus(
       { status: 'error' },
-      { status: 'missing' },
       { status: 'missing' },
       { status: 'missing' },
     );
@@ -104,8 +86,7 @@ describe('Health Check — response shape', () => {
       timestamp: new Date().toISOString(),
       dependencies: {
         supabase: { status: 'ok', latencyMs: 30 },
-        anthropic: { status: 'configured' },
-        openai: { status: 'configured' },
+        googleAI: { status: 'configured' },
         asaas: { status: 'configured' },
       },
     };
@@ -115,8 +96,7 @@ describe('Health Check — response shape', () => {
     expect(response).toHaveProperty('timestamp');
     expect(response).toHaveProperty('dependencies');
     expect(response.dependencies).toHaveProperty('supabase');
-    expect(response.dependencies).toHaveProperty('anthropic');
-    expect(response.dependencies).toHaveProperty('openai');
+    expect(response.dependencies).toHaveProperty('googleAI');
     expect(response.dependencies).toHaveProperty('asaas');
   });
 

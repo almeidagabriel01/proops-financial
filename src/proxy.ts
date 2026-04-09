@@ -6,15 +6,14 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // NOTE: '/(app)/:path*' never matches real browser URLs because Next.js route groups
-  // like (app) are stripped from the URL path. Routes under src/app/(app)/ are
-  // accessible as /dashboard, /import, etc. — not as /(app)/dashboard.
-  //
-  // The unauthenticated-user redirect logic in updateSession() is therefore dead code
-  // for (app)/ routes with this matcher. Route protection for those pages is handled
-  // server-side by src/app/(app)/layout.tsx (defense-in-depth via auth guard).
-  //
-  // TODO Story 1.4: expand matcher to explicitly cover /dashboard and other app routes,
-  // or remove the dead code from updateSession() to avoid confusion.
-  matcher: ['/(app)/:path*', '/login', '/signup'],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico, manifest.json, PWA assets (icons/, screenshots/)
+     * - Image file extensions
+     */
+    '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|icons/|screenshots/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };

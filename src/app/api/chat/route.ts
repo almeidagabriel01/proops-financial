@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, type UIMessage } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+
+const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 import { buildFinancialContext, checkAndResetRateLimit } from '@/lib/ai/chat';
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const model = tier === 'pro' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
+  const model = tier === 'pro' ? 'gemini-2.5-flash' : 'gemini-2.0-flash';
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 
@@ -79,13 +81,13 @@ export async function POST(req: Request) {
   const supabaseAdminForAnalytics = await createServiceClient();
   trackChatMessageSent(supabaseAdminForAnalytics, user.id, {
     plan: profile.plan ?? 'free',
-    model: tier === 'pro' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    model,
     query_count_after: queriesUsed + 1,
   });
 
-  // Stub mode — ANTHROPIC_API_KEY not configured
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.log('[chat] stub mode — ANTHROPIC_API_KEY not set');
+  // Stub mode — GOOGLE_AI_API_KEY not configured
+  if (!process.env.GOOGLE_AI_API_KEY) {
+    console.log('[chat] stub mode — GOOGLE_AI_API_KEY not set');
     const stubText =
       '[Modo demonstração] Configure ANTHROPIC_API_KEY para ativar o assistente financeiro com seus dados reais.';
     const stream = createUIMessageStream({
@@ -97,11 +99,11 @@ export async function POST(req: Request) {
   }
 
   const supabaseAdmin = await createServiceClient();
-  const tools = tier === 'pro' ? makeProTools(user.id, supabaseAdmin) : undefined;
+  const tools = tier === 'pro' ? makeProTools(user.id, supabaseAdmin, supabase) : undefined;
 
   const modelMessages = await convertToModelMessages(messages);
   const result = streamText({
-    model: anthropic(model),
+    model: google(model),
     system: systemPrompt,
     messages: modelMessages,
     tools,

@@ -1,13 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
-import { CATEGORIES } from '@/lib/billing/plans';
-import type { Category } from '@/lib/billing/plans';
+import { sanitizeCategory } from '@/lib/utils/categories';
 
 interface UpdateTransactionBody {
   date?: string;
   description?: string;
   amount?: number;
   type?: 'credit' | 'debit';
-  category?: Category;
+  category?: string;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -74,10 +73,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (body.category !== undefined) {
-    if (!CATEGORIES.includes(body.category as Category)) {
+    const sanitizedCategory = sanitizeCategory(body.category ?? '');
+    if (!sanitizedCategory) {
       return Response.json({ error: 'Categoria inválida' }, { status: 400 });
     }
-    updates.category = body.category;
+    updates.category = sanitizedCategory;
     updates.category_source = 'user';
   }
 

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { CATEGORIES } from '@/lib/billing/plans';
 import type { Category } from '@/lib/billing/plans';
+import { sanitizeCategory } from '@/lib/utils/categories';
 import type { Transaction } from '@/hooks/use-transactions';
 import { createClient } from '@/lib/supabase/client';
 
@@ -34,6 +35,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
   outros: 'Outros',
 };
 
+const CUSTOM_VALUE = '__custom__';
+
 interface BankAccount {
   id: string;
   bank_name: string;
@@ -45,7 +48,7 @@ interface TransactionFormValues {
   description: string;
   amount: string;
   type: 'credit' | 'debit';
-  category: Category;
+  category: string;
   bank_account_id: string; // 'manual' = let server create/reuse
 }
 
@@ -154,8 +157,9 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
       newErrors.amount = 'Valor máximo: R$ 999.999,99';
     }
 
-    if (!CATEGORIES.includes(values.category)) {
-      newErrors.category = 'Selecione uma categoria';
+    const cat = sanitizeCategory(values.category);
+    if (!cat || cat === CUSTOM_VALUE) {
+      newErrors.category = 'Selecione ou informe uma categoria';
     }
 
     setErrors(newErrors);
@@ -299,9 +303,9 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
               Categoria
             </label>
             <Select
-              value={values.category}
-              onValueChange={(v) => {
-                setValues((prev) => ({ ...prev, category: v as Category }));
+              value={CATEGORIES.includes(values.category as Category) ? values.category : (values.category ? CUSTOM_VALUE : '')}
+              onValueChange={(v: string | null) => {
+                setValues((prev): TransactionFormValues => ({ ...prev, category: v ?? '' }));
                 if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
               }}
             >
@@ -314,8 +318,21 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
                     {CATEGORY_LABELS[cat]}
                   </SelectItem>
                 ))}
+                <SelectItem value={CUSTOM_VALUE}>Personalizada...</SelectItem>
               </SelectContent>
             </Select>
+            {(values.category === CUSTOM_VALUE || (!CATEGORIES.includes(values.category as Category) && values.category && values.category !== '')) && (
+              <Input
+                className="mt-2"
+                placeholder="Nome da categoria (ex: loja, pet, beleza)"
+                maxLength={50}
+                value={values.category === CUSTOM_VALUE ? '' : values.category}
+                onChange={(e) => {
+                  setValues((prev) => ({ ...prev, category: e.target.value }));
+                  if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
+                }}
+              />
+            )}
             {errors.category && (
               <p className="mt-1 text-xs text-destructive">{errors.category}</p>
             )}

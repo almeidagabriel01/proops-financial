@@ -33,7 +33,28 @@ function makeDb(overrides: {
       }),
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
+          // maybeSingle used when only one .eq() in chain (fallback)
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { id: 'mock-account-id' },
+            error: null,
+          }),
+          // .in() chain — used by getOrCreateManualAccount (eq(user_id).in(bank_name,[...]))
+          in: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { id: 'mock-account-id' },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+          // second .eq() — used by ownership checks (id + user_id) in update/delete
           eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'mock-account-id' },
+              error: null,
+            }),
             single: vi.fn().mockResolvedValue({
               data: defaultSelect,
               error: null,
@@ -69,6 +90,32 @@ function makeDb(overrides: {
   } as unknown as SupabaseClient;
 }
 
+// ---------------------------------------------------------------------------
+// Builder mock for search_transactions — supports chainable query builder
+// The Supabase query builder is thenable: await q resolves directly.
+// ---------------------------------------------------------------------------
+function makeSearchDb(rows: Record<string, unknown>[], error: string | null = null) {
+  // Each builder method returns `this` so the chain resolves at the end
+  const query: Record<string, unknown> = {
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    ilike: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    // Thenable: when code does `const { data, error } = await q`, this runs
+    then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+      return Promise.resolve({ data: rows, error: error ? { message: error } : null }).then(resolve, reject);
+    },
+  };
+
+  return {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue(query),
+    }),
+  } as unknown as SupabaseClient;
+}
+
 // Helper to call execute (non-null assertion — execute always defined in our tools)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function run(tool: { execute?: (...a: any[]) => any }, args: Record<string, unknown>, ctxId: string) {
@@ -77,12 +124,51 @@ async function run(tool: { execute?: (...a: any[]) => any }, args: Record<string
 }
 
 // ---------------------------------------------------------------------------
+// search_transactions
+// ---------------------------------------------------------------------------
+describe('search_transactions', () => {
+  it('retorna lista de transações do usuário', async () => {
+    const rows = [
+      { id: 'tx-1', date: '2026-04-08', description: 'iFood', amount: -50, type: 'debit', category: 'delivery' },
+    ];
+    const db = makeSearchDb(rows);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.search_transactions, { query: 'iFood', limit: 10 }, 'sc-1');
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(1);
+    expect((result.transactions as { description: string }[])[0].description).toBe('iFood');
+  });
+
+  it('retorna lista vazia quando não há resultados', async () => {
+    const db = makeSearchDb([]);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.search_transactions, { query: 'inexistente', limit: 10 }, 'sc-2');
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(0);
+  });
+
+  it('propaga erro do banco de dados', async () => {
+    const db = makeSearchDb([], 'connection refused');
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.search_transactions, { limit: 10 }, 'sc-3');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('connection refused');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // create_transaction
 // ---------------------------------------------------------------------------
 describe('create_transaction', () => {
   it('insere transação e retorna sucesso com mensagem', async () => {
     const db = makeDb({ insertData: { id: 'tx-123' } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.create_transaction, {
       date: '2026-04-07', description: 'iFood', amount: -50, category: 'delivery',
@@ -95,7 +181,7 @@ describe('create_transaction', () => {
 
   it('seta type=debit para amount negativo e user_id do closure', async () => {
     const db = makeDb({ insertData: { id: 'tx-debit' } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     await run(tools.create_transaction, {
       date: '2026-04-07', description: 'Compra', amount: -100, category: 'compras',
@@ -110,7 +196,7 @@ describe('create_transaction', () => {
 
   it('seta type=credit para amount positivo', async () => {
     const db = makeDb({ insertData: { id: 'tx-credit' } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     await run(tools.create_transaction, {
       date: '2026-04-07', description: 'Salário', amount: 3000, category: 'salario',
@@ -120,6 +206,78 @@ describe('create_transaction', () => {
     const insertCall = (db.from('transactions').insert as any).mock.calls[0][0];
     expect(insertCall.type).toBe('credit');
   });
+
+  it('inclui external_id no insert (coluna NOT NULL)', async () => {
+    const db = makeDb({ insertData: { id: 'tx-ext' } });
+    const tools = makeProTools(USER_ID, db, db);
+
+    await run(tools.create_transaction, {
+      date: '2026-04-08', description: 'Teste', amount: -10, category: 'outros',
+    }, 'tc-ext');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertCall = (db.from('transactions').insert as any).mock.calls[0][0];
+    expect(insertCall.external_id).toMatch(/^manual-/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// update_transaction
+// ---------------------------------------------------------------------------
+describe('update_transaction', () => {
+  it('atualiza campos fornecidos e retorna sucesso', async () => {
+    const db = makeDb({ selectData: { description: 'iFood', user_id: USER_ID } });
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.update_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000001',
+      date: '2026-04-08',
+      amount: -75,
+    }, 'ut-1');
+
+    expect(result.success).toBe(true);
+    expect(result.message as string).toContain('iFood');
+  });
+
+  it('recalcula type ao atualizar amount', async () => {
+    const db = makeDb({ selectData: { description: 'Salário', user_id: USER_ID } });
+    const tools = makeProTools(USER_ID, db, db);
+
+    await run(tools.update_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000002',
+      amount: 3000,
+    }, 'ut-2');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateCall = (db.from('transactions').update as any).mock.calls[0][0];
+    expect(updateCall.type).toBe('credit');
+    expect(updateCall.amount).toBe(3000);
+  });
+
+  it('retorna erro quando nenhum campo é fornecido', async () => {
+    const db = makeDb({ selectData: { description: 'Teste', user_id: USER_ID } });
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.update_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000003',
+    }, 'ut-3');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('Nenhum campo');
+  });
+
+  it('retorna erro quando transação não pertence ao usuário', async () => {
+    const db = makeDb({ selectData: null });
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.update_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000004',
+      date: '2026-04-08',
+    }, 'ut-4');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('não encontrada');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -128,10 +286,10 @@ describe('create_transaction', () => {
 describe('update_transaction_category', () => {
   it('recategoriza quando transação pertence ao usuário', async () => {
     const db = makeDb({ selectData: { description: 'Uber', user_id: USER_ID } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.update_transaction_category, {
-      transactionId: 'tx-999', newCategory: 'transporte',
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000005', newCategory: 'transporte',
     }, 'tc-4');
 
     expect(result.success).toBe(true);
@@ -140,10 +298,10 @@ describe('update_transaction_category', () => {
 
   it('retorna erro quando transação não pertence ao usuário (ownership check)', async () => {
     const db = makeDb({ selectData: null });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.update_transaction_category, {
-      transactionId: 'tx-other', newCategory: 'lazer',
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000006', newCategory: 'lazer',
     }, 'tc-5');
 
     expect(result.success).toBe(false);
@@ -157,10 +315,10 @@ describe('update_transaction_category', () => {
 describe('delete_transaction', () => {
   it('retorna requiresConfirmation quando confirmed=false', async () => {
     const db = makeDb({ selectData: { description: 'Amazon', amount: -120, user_id: USER_ID } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.delete_transaction, {
-      transactionId: 'tx-del', confirmed: false,
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000007', confirmed: false,
     }, 'tc-6');
 
     expect(result.requiresConfirmation).toBe(true);
@@ -169,10 +327,10 @@ describe('delete_transaction', () => {
 
   it('exclui quando confirmed=true', async () => {
     const db = makeDb({ selectData: { description: 'Amazon', amount: -120, user_id: USER_ID } });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.delete_transaction, {
-      transactionId: 'tx-del', confirmed: true,
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000008', confirmed: true,
     }, 'tc-7');
 
     expect(result.success).toBe(true);
@@ -180,10 +338,10 @@ describe('delete_transaction', () => {
 
   it('retorna erro quando transação não pertence ao usuário', async () => {
     const db = makeDb({ selectData: null });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.delete_transaction, {
-      transactionId: 'tx-ghost', confirmed: true,
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000009', confirmed: true,
     }, 'tc-8');
 
     expect(result.success).toBe(false);
@@ -196,7 +354,7 @@ describe('delete_transaction', () => {
 describe('create_budget', () => {
   it('faz upsert no budgets e retorna mensagem em BRL', async () => {
     const db = makeDb();
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.create_budget, {
       category: 'alimentacao', monthlyLimit: 600,
@@ -213,9 +371,9 @@ describe('create_budget', () => {
 describe('create_goal', () => {
   it('insere goal e retorna mensagem de confirmação', async () => {
     const db = makeDb({
-      insertData: { id: 'goal-1', name: 'Viagem', target_amount: 5000, target_date: '2026-12-01' },
+      insertData: { id: 'goal-1', name: 'Viagem', target_amount: 5000, deadline: '2026-12-01' },
     });
-    const tools = makeProTools(USER_ID, db);
+    const tools = makeProTools(USER_ID, db, db);
 
     const result = await run(tools.create_goal, {
       name: 'Viagem', targetAmount: 5000, targetDate: '2026-12-01',

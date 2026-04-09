@@ -18,6 +18,8 @@ const BANK_OPTIONS = [
 // Polling fallback: starts after this delay if Realtime hasn't fired
 const REALTIME_TIMEOUT_MS = 6000;
 const POLL_INTERVAL_MS = 3000;
+// Safety net: if categorization never resolves, fail after this duration (from polling start)
+const MAX_POLL_DURATION_MS = 90_000;
 
 export default function ImportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -75,6 +77,7 @@ export default function ImportPage() {
     if (importStatus !== 'categorizing' || !importId) return;
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let maxPollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const startPolling = () => {
       pollInterval = setInterval(async () => {
@@ -103,7 +106,15 @@ export default function ImportPage() {
         }
 
         if (pollInterval) clearInterval(pollInterval);
+        if (maxPollTimeout) clearTimeout(maxPollTimeout);
       }, POLL_INTERVAL_MS);
+
+      // Safety net: if Edge Function never updates status, fail gracefully
+      maxPollTimeout = setTimeout(() => {
+        if (pollInterval) clearInterval(pollInterval);
+        setImportStatus('failed');
+        setErrorMessage('Categorização está demorando mais do que o esperado. Tente novamente.');
+      }, MAX_POLL_DURATION_MS);
     };
 
     const timeout = setTimeout(startPolling, REALTIME_TIMEOUT_MS);
@@ -111,6 +122,7 @@ export default function ImportPage() {
     return () => {
       clearTimeout(timeout);
       if (pollInterval) clearInterval(pollInterval);
+      if (maxPollTimeout) clearTimeout(maxPollTimeout);
     };
   }, [importId, importStatus, supabase]);
 

@@ -154,6 +154,9 @@ export type Database = {
           category: string;
           category_source: 'pending' | 'ai' | 'user' | 'cache';
           category_confidence: number | null;
+          installment_group_id: string | null;
+          installment_number: number | null;
+          recurring_rule_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -170,6 +173,9 @@ export type Database = {
           category?: string;
           category_source?: 'pending' | 'ai' | 'user' | 'cache';
           category_confidence?: number | null;
+          installment_group_id?: string | null;
+          installment_number?: number | null;
+          recurring_rule_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -186,6 +192,9 @@ export type Database = {
           category?: string;
           category_source?: 'pending' | 'ai' | 'user' | 'cache';
           category_confidence?: number | null;
+          installment_group_id?: string | null;
+          installment_number?: number | null;
+          recurring_rule_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -281,12 +290,124 @@ export type Database = {
         };
         Relationships: [];
       };
+      budgets: {
+        Row: {
+          id: string;
+          user_id: string;
+          category: string;
+          monthly_limit: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          category: string;
+          monthly_limit: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          category?: string;
+          monthly_limit?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'budgets_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      goals: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          target_amount: number;
+          current_amount: number;
+          deadline: string;
+          status: 'active' | 'completed' | 'canceled';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          target_amount: number;
+          current_amount?: number;
+          deadline: string;
+          status?: 'active' | 'completed' | 'canceled';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          target_amount?: number;
+          current_amount?: number;
+          deadline?: string;
+          status?: 'active' | 'completed' | 'canceled';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'goals_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      conversations: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string | null;
+          last_message_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title?: string | null;
+          last_message_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string | null;
+          last_message_at?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'conversations_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       chat_messages: {
         Row: {
           id: string;
           user_id: string;
           role: 'user' | 'assistant';
           content: string;
+          conversation_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -294,6 +415,7 @@ export type Database = {
           user_id: string;
           role: 'user' | 'assistant';
           content: string;
+          conversation_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -301,6 +423,7 @@ export type Database = {
           user_id?: string;
           role?: 'user' | 'assistant';
           content?: string;
+          conversation_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -309,6 +432,216 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      installment_groups: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          total_amount: number;
+          installment_count: number;
+          installment_amount: number;
+          first_date: string;
+          category: string;
+          source: 'import' | 'manual';
+          source_transaction_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          total_amount: number;
+          installment_count: number;
+          installment_amount: number;
+          first_date: string;
+          category?: string;
+          source?: 'import' | 'manual';
+          source_transaction_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_account_id?: string;
+          description?: string;
+          total_amount?: number;
+          installment_count?: number;
+          installment_amount?: number;
+          first_date?: string;
+          category?: string;
+          source?: 'import' | 'manual';
+          source_transaction_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'installment_groups_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'installment_groups_bank_account_id_fkey';
+            columns: ['bank_account_id'];
+            isOneToOne: false;
+            referencedRelation: 'bank_accounts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      recurring_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category: string;
+          frequency: 'weekly' | 'biweekly' | 'monthly' | 'annual';
+          start_date: string;
+          end_date: string | null;
+          next_due_date: string;
+          status: 'active' | 'paused' | 'canceled';
+          source: 'auto_detected' | 'manual';
+          auto_detect_confidence: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category?: string;
+          frequency: 'weekly' | 'biweekly' | 'monthly' | 'annual';
+          start_date: string;
+          end_date?: string | null;
+          next_due_date: string;
+          status?: 'active' | 'paused' | 'canceled';
+          source?: 'auto_detected' | 'manual';
+          auto_detect_confidence?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_account_id?: string;
+          description?: string;
+          amount?: number;
+          type?: 'credit' | 'debit';
+          category?: string;
+          frequency?: 'weekly' | 'biweekly' | 'monthly' | 'annual';
+          start_date?: string;
+          end_date?: string | null;
+          next_due_date?: string;
+          status?: 'active' | 'paused' | 'canceled';
+          source?: 'auto_detected' | 'manual';
+          auto_detect_confidence?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'recurring_rules_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'recurring_rules_bank_account_id_fkey';
+            columns: ['bank_account_id'];
+            isOneToOne: false;
+            referencedRelation: 'bank_accounts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      scheduled_transactions: {
+        Row: {
+          id: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category: string;
+          due_date: string;
+          status: 'pending' | 'paid' | 'overdue' | 'canceled';
+          recurring_rule_id: string | null;
+          installment_group_id: string | null;
+          installment_number: number | null;
+          paid_transaction_id: string | null;
+          paid_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          bank_account_id: string;
+          description: string;
+          amount: number;
+          type: 'credit' | 'debit';
+          category?: string;
+          due_date: string;
+          status?: 'pending' | 'paid' | 'overdue' | 'canceled';
+          recurring_rule_id?: string | null;
+          installment_group_id?: string | null;
+          installment_number?: number | null;
+          paid_transaction_id?: string | null;
+          paid_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          bank_account_id?: string;
+          description?: string;
+          amount?: number;
+          type?: 'credit' | 'debit';
+          category?: string;
+          due_date?: string;
+          status?: 'pending' | 'paid' | 'overdue' | 'canceled';
+          recurring_rule_id?: string | null;
+          installment_group_id?: string | null;
+          installment_number?: number | null;
+          paid_transaction_id?: string | null;
+          paid_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'scheduled_transactions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'scheduled_transactions_bank_account_id_fkey';
+            columns: ['bank_account_id'];
+            isOneToOne: false;
+            referencedRelation: 'bank_accounts';
             referencedColumns: ['id'];
           },
         ];

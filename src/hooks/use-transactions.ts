@@ -30,7 +30,8 @@ export function useTransactions(filters: TransactionFilters = {}) {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const offsetRef = useRef(0);
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   const buildQuery = useCallback(
     (offset: number, limit: number) => {

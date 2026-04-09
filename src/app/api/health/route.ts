@@ -25,19 +25,15 @@ async function checkSupabase(): Promise<DependencyStatus> {
 export async function GET() {
   const supabase = await checkSupabase();
 
-  const anthropic: DependencyStatus = {
-    status: process.env.ANTHROPIC_API_KEY ? 'configured' : 'missing',
-  };
-  const openai: DependencyStatus = {
-    status: process.env.OPENAI_API_KEY ? 'configured' : 'missing',
+  const googleAI: DependencyStatus = {
+    status: process.env.GOOGLE_AI_API_KEY ? 'configured' : 'missing',
   };
   const asaas: DependencyStatus = {
     status: process.env.ASAAS_API_KEY ? 'configured' : 'missing',
   };
 
   const allConfigured =
-    anthropic.status === 'configured' &&
-    openai.status === 'configured' &&
+    googleAI.status === 'configured' &&
     asaas.status === 'configured';
 
   const overallStatus =
@@ -53,8 +49,7 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     dependencies: {
       supabase,
-      anthropic,
-      openai,
+      googleAI,
       asaas,
     },
   });

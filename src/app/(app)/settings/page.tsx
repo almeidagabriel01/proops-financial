@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
 import * as Sentry from '@sentry/nextjs';
 import { usePlan } from '@/hooks/use-plan';
 import { useUser } from '@/hooks/use-user';
@@ -15,7 +16,22 @@ const TABS = ['perfil', 'plano', 'dados'] as const;
 type Tab = (typeof TABS)[number];
 
 function ProfileTab() {
-  const { user, profile } = useUser();
+  const { user, profile, loading } = useUser();
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-muted-foreground">E-mail</label>
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-muted-foreground">Nome</label>
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
