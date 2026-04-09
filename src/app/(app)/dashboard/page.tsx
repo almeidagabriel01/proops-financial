@@ -17,6 +17,7 @@ import {
   aggregateByCategory,
   buildCategoryBreakdown,
 } from '@/lib/utils/category-aggregation';
+import { UpcomingBillsCard, type UpcomingBill } from '@/components/dashboard/upcoming-bills-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -61,8 +62,16 @@ export default async function DashboardPage({
         })
       : now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  // Parallel fetch: current period + comparison period + pending count
-  const [currentResult, compResult, pendingResult] = await Promise.all([
+  // Upcoming bills: next 7 days + overdue
+  const sevenDaysAhead = new Date();
+  sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+  const upcomingTo = sevenDaysAhead.toISOString().slice(0, 10);
+  const upcomingFrom = new Date();
+  upcomingFrom.setDate(upcomingFrom.getDate() - 30); // include overdue from last 30 days
+  const upcomingFromStr = upcomingFrom.toISOString().slice(0, 10);
+
+  // Parallel fetch: current period + comparison period + pending count + upcoming bills
+  const [currentResult, compResult, pendingResult, upcomingResult] = await Promise.all([
     supabase
       .from('transactions')
       .select('category, amount, type, date')
@@ -80,8 +89,19 @@ export default async function DashboardPage({
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('category_source', 'pending'),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('scheduled_transactions')
+      .select('id, description, amount, type, due_date, status, category')
+      .eq('user_id', user.id)
+      .gte('due_date', upcomingFromStr)
+      .lte('due_date', upcomingTo)
+      .in('status', ['pending', 'overdue'])
+      .order('due_date', { ascending: true })
+      .limit(10),
   ]);
 
+  const upcomingBills = ((upcomingResult as { data?: unknown[] }).data ?? []) as UpcomingBill[];
   const rows = currentResult.data ?? [];
   const income = rows.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const expenses = rows
@@ -114,6 +134,11 @@ export default async function DashboardPage({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Categorizando suas transações...</p>
         </div>
+      )}
+
+      {/* Upcoming bills (overdue + next 7 days) */}
+      {upcomingBills.length > 0 && (
+        <UpcomingBillsCard bills={upcomingBills} daysAhead={7} />
       )}
 
       {hasData ? (
