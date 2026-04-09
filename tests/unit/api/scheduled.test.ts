@@ -48,10 +48,9 @@ describe('Scheduled Transactions API — validation logic', () => {
       expect(signed).toBe(-500);
     });
     it('crédito gera amount positivo na transação', () => {
-      const amount = 3000;
-      const type = 'credit';
-      const signed = type === 'debit' ? -Math.abs(amount) : Math.abs(amount);
-      expect(signed).toBe(3000);
+      const applySign = (t: 'credit' | 'debit', v: number) =>
+        t === 'debit' ? -Math.abs(v) : Math.abs(v);
+      expect(applySign('credit', 3000)).toBe(3000);
     });
   });
 });

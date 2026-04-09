@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { handleAsaasWebhook } from '@/lib/billing/webhook-handler';
+import type { Database } from '@/lib/supabase/types';
 
 /**
  * Integration tests for the Asaas webhook flow.
@@ -14,13 +15,13 @@ const TEST_KEY = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
 const hasCredentials = Boolean(TEST_URL && TEST_KEY);
 
 describe.skipIf(!hasCredentials)('Webhook Flow — Integration (staging Supabase)', () => {
-  let supabase: ReturnType<typeof createClient>;
+  let supabase: SupabaseClient<Database>;
   let testUserId: string;
   const asaasCustomerId = `cus_test_${randomUUID().slice(0, 8)}`;
   const asaasSubscriptionId = `sub_test_${randomUUID().slice(0, 8)}`;
 
   beforeAll(async () => {
-    supabase = createClient(TEST_URL!, TEST_KEY!);
+    supabase = createClient<Database>(TEST_URL!, TEST_KEY!);
 
     const runId = randomUUID().slice(0, 8);
     const email = `webhook-${runId}@test.finansim.app`;
@@ -42,10 +43,9 @@ describe.skipIf(!hasCredentials)('Webhook Flow — Integration (staging Supabase
     // Create subscription row
     await supabase.from('subscriptions').upsert({
       user_id: testUserId,
-      asaas_customer_id: asaasCustomerId,
       asaas_subscription_id: asaasSubscriptionId,
+      billing_cycle: 'monthly',
       status: 'pending',
-      plan: 'pro',
     });
   });
 

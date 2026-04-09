@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { parseCSV } from '@/lib/parsers/csv-parser';
 import { parseOFX } from '@/lib/parsers/ofx-parser';
+import type { Database } from '@/lib/supabase/types';
 
 /**
  * Integration tests for the import flow.
@@ -17,11 +18,12 @@ const TEST_KEY = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
 const hasCredentials = Boolean(TEST_URL && TEST_KEY);
 
 describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)', () => {
-  let supabase: ReturnType<typeof createClient>;
+  let supabase: SupabaseClient<Database>;
   let testUserId: string;
+  let testBankAccountId: string;
 
   beforeAll(async () => {
-    supabase = createClient(TEST_URL!, TEST_KEY!);
+    supabase = createClient<Database>(TEST_URL!, TEST_KEY!);
 
     // Create isolated test user
     const runId = randomUUID().slice(0, 8);
@@ -37,11 +39,21 @@ describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)
 
     // Mark onboarding complete
     await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', testUserId);
+
+    // Create a bank account for transaction inserts
+    const { data: account, error: accountError } = await supabase
+      .from('bank_accounts')
+      .insert({ user_id: testUserId, bank_name: 'test' })
+      .select('id')
+      .single();
+    if (accountError || !account) throw new Error(`Bank account creation failed: ${accountError?.message}`);
+    testBankAccountId = account.id;
   });
 
   afterAll(async () => {
     if (!testUserId) return;
     await supabase.from('transactions').delete().eq('user_id', testUserId);
+    await supabase.from('bank_accounts').delete().eq('user_id', testUserId);
     await supabase.auth.admin.deleteUser(testUserId);
   });
 
@@ -54,6 +66,7 @@ describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)
     // Insert parsed transactions
     const rows = parsed.map((tx) => ({
       user_id: testUserId,
+      bank_account_id: testBankAccountId,
       date: tx.date,
       description: tx.description,
       amount: tx.amount,
@@ -81,6 +94,7 @@ describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)
     // Attempt to re-insert same external_ids — should upsert or fail silently
     const rows = parsed.map((tx) => ({
       user_id: testUserId,
+      bank_account_id: testBankAccountId,
       date: tx.date,
       description: tx.description,
       amount: tx.amount,
@@ -108,6 +122,7 @@ describe.skipIf(!hasCredentials)('Import Flow — Integration (staging Supabase)
 
     const rows = parsed.map((tx) => ({
       user_id: testUserId,
+      bank_account_id: testBankAccountId,
       date: tx.date,
       description: tx.description,
       amount: tx.amount,
