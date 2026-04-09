@@ -382,4 +382,341 @@ describe('create_goal', () => {
     expect(result.success).toBe(true);
     expect(result.message as string).toContain('Viagem');
   });
+
+  it('retorna erro quando insert falha', async () => {
+    const db = {
+      from: vi.fn().mockReturnValue({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: { message: 'db error' } }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.create_goal, {
+      name: 'Falha', targetAmount: 1000, targetDate: '2026-12-01',
+    }, 'goal-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('db error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error paths — create_budget, update_transaction, update_transaction_category,
+//               delete_transaction, create_transaction
+// ---------------------------------------------------------------------------
+describe('Error paths', () => {
+  it('create_budget retorna erro quando upsert falha', async () => {
+    const db = {
+      from: vi.fn().mockReturnValue({
+        upsert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: { message: 'upsert fail' } }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.create_budget, { category: 'alimentacao', monthlyLimit: 500 }, 'cb-err');
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('upsert fail');
+  });
+
+  it('update_transaction atualiza categoria e propaga erro de banco', async () => {
+    const db = makeDb({
+      selectData: { description: 'Teste', user_id: USER_ID },
+      updateError: 'update failed',
+    });
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.update_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000010',
+      category: 'lazer',
+    }, 'ut-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('update failed');
+  });
+
+  it('update_transaction_category retorna erro quando update falha', async () => {
+    const db = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { description: 'Mercado', user_id: USER_ID },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'update error' } }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.update_transaction_category, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000011', newCategory: 'compras',
+    }, 'utc-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('update error');
+  });
+
+  it('delete_transaction retorna erro quando delete falha', async () => {
+    const db = makeDb({
+      selectData: { description: 'Pix', amount: -200, user_id: USER_ID },
+      deleteError: 'delete failed',
+    });
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.delete_transaction, {
+      transactionId: 'aaaaaaaa-0000-0000-0000-000000000012', confirmed: true,
+    }, 'dt-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('delete failed');
+  });
+
+  it('create_transaction retorna erro quando insert principal falha', async () => {
+    const db = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'bank_accounts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'acct-1' }, error: null }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        // transactions insert fails
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: { message: 'insert fail' } }),
+            }),
+          }),
+        };
+      }),
+    } as unknown as SupabaseClient;
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.create_transaction, {
+      date: '2026-04-01', description: 'Erro', amount: -50, category: 'outros',
+    }, 'ct-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('insert fail');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// list_scheduled_transactions
+// ---------------------------------------------------------------------------
+
+function makeScheduledDb(
+  rows: Record<string, unknown>[],
+  error: string | null = null,
+) {
+  const query: Record<string, unknown> = {
+    eq: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+      return Promise.resolve({ data: rows, error: error ? { message: error } : null }).then(resolve, reject);
+    },
+  };
+
+  return {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue(query),
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe('list_scheduled_transactions', () => {
+  it('retorna pending + overdue por padrão (sem filtro de status)', async () => {
+    const rows = [
+      { id: 's1', description: 'Aluguel', amount: -1500, type: 'debit', due_date: '2026-04-10', status: 'pending', category: 'moradia' },
+    ];
+    const db = makeScheduledDb(rows);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, { limit: 10 }, 'ls-1');
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(1);
+  });
+
+  it('filtra por status quando fornecido', async () => {
+    const rows = [
+      { id: 's2', description: 'Conta de luz', amount: -200, type: 'debit', due_date: '2026-04-05', status: 'overdue', category: 'moradia' },
+    ];
+    const db = makeScheduledDb(rows);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, { status: 'overdue' }, 'ls-2');
+
+    expect(result.success).toBe(true);
+  });
+
+  it('filtra por type=credit (receitas)', async () => {
+    const rows = [
+      { id: 's3', description: 'Salário', amount: 5000, type: 'credit', due_date: '2026-04-30', status: 'pending', category: 'salario' },
+    ];
+    const db = makeScheduledDb(rows);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, { type: 'credit' }, 'ls-3');
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(1);
+  });
+
+  it('calcula totalAPagar e totalAReceber corretamente', async () => {
+    const rows = [
+      { id: 's4', description: 'Aluguel', amount: -2000, type: 'debit', due_date: '2026-04-10', status: 'pending', category: 'moradia' },
+      { id: 's5', description: 'Salário', amount: 5000, type: 'credit', due_date: '2026-04-30', status: 'pending', category: 'salario' },
+    ];
+    const db = makeScheduledDb(rows);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, {}, 'ls-4');
+
+    expect(result.success).toBe(true);
+    expect(result.totalAPagar as string).toContain('2.000');
+    expect(result.totalAReceber as string).toContain('5.000');
+  });
+
+  it('retorna erro quando query falha', async () => {
+    const db = makeScheduledDb([], 'timeout');
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, {}, 'ls-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('timeout');
+  });
+
+  it('retorna lista vazia quando não há agendamentos', async () => {
+    const db = makeScheduledDb([]);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.list_scheduled_transactions, {}, 'ls-empty');
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// get_cash_flow_projection
+// ---------------------------------------------------------------------------
+
+function makeCashFlowDb(
+  scheduledRows: Record<string, unknown>[],
+  balanceRows: { amount: number }[],
+  scheduledError: string | null = null,
+) {
+  const scheduledQuery: Record<string, unknown> = {
+    eq: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+      return Promise.resolve({
+        data: scheduledRows,
+        error: scheduledError ? { message: scheduledError } : null,
+      }).then(resolve, reject);
+    },
+  };
+
+  return {
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'scheduled_transactions') {
+        return { select: vi.fn().mockReturnValue(scheduledQuery) };
+      }
+      // transactions table for current balance
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: balanceRows, error: null }),
+        }),
+      };
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe('get_cash_flow_projection', () => {
+  it('retorna projeção positiva com saldo atual e agendados', async () => {
+    const scheduled = [
+      { due_date: '2026-04-30', amount: 5000, type: 'credit', status: 'pending' },
+      { due_date: '2026-04-15', amount: -1500, type: 'debit', status: 'pending' },
+    ];
+    const balance = [{ amount: 1000 }, { amount: -200 }];
+    const db = makeCashFlowDb(scheduled, balance);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.get_cash_flow_projection, { months: 1 }, 'cf-1');
+
+    expect(result.success).toBe(true);
+    expect(result.situacao).toBe('positivo');
+    expect(result.saldoAtual as string).toBeTruthy();
+    expect(result.saldoProjetado as string).toBeTruthy();
+  });
+
+  it('retorna situacao=negativo quando saldo projetado é negativo', async () => {
+    const scheduled = [
+      { due_date: '2026-04-15', amount: -10000, type: 'debit', status: 'pending' },
+    ];
+    const balance = [{ amount: 500 }];
+    const db = makeCashFlowDb(scheduled, balance);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.get_cash_flow_projection, { months: 1 }, 'cf-2');
+
+    expect(result.success).toBe(true);
+    expect(result.situacao).toBe('negativo');
+  });
+
+  it('retorna erro quando query de agendamentos falha', async () => {
+    const db = makeCashFlowDb([], [], 'db timeout');
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.get_cash_flow_projection, { months: 1 }, 'cf-err');
+
+    expect(result.success).toBe(false);
+    expect(result.error as string).toContain('db timeout');
+  });
+
+  it('projeta múltiplos meses corretamente', async () => {
+    const scheduled = [
+      { due_date: '2026-05-01', amount: 3000, type: 'credit', status: 'pending' },
+    ];
+    const db = makeCashFlowDb(scheduled, [{ amount: 2000 }]);
+    const tools = makeProTools(USER_ID, db, db);
+
+    const result = await run(tools.get_cash_flow_projection, { months: 3 }, 'cf-3');
+
+    expect(result.success).toBe(true);
+    expect(result.periodo as string).toBeTruthy();
+  });
 });
