@@ -4,6 +4,9 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { parseOFX } from '@/lib/parsers/ofx-parser';
 import { parseCSV } from '@/lib/parsers/csv-parser';
 import { trackImportCompleted } from '@/lib/analytics/events';
+import { detectInstallments } from '@/lib/installments/detector';
+import { generateFutureInstallments } from '@/lib/installments/generator';
+import { sanitizeCategory } from '@/lib/utils/categories';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -184,6 +187,87 @@ export async function POST(request: Request) {
     );
   }
 
+  // ── Etapa 5.5: Detecção de parcelas ─────────────────────────
+  // Detectar parcelas ANTES do dedup para poder linkar as transações ao grupo
+  const detectedInstallments = detectInstallments(parsedTransactions);
+
+  // Mapa: índice da transação no parsedTransactions → { groupId, installmentNumber }
+  const installmentMap = new Map<number, { groupId: string; installmentNumber: number }>();
+
+  // Para cada parcela detectada, criar o grupo e as parcelas futuras
+  if (detectedInstallments.length > 0) {
+    for (const detection of detectedInstallments) {
+      try {
+        const tx = parsedTransactions[detection.transactionIndex];
+        const installmentAmount = Math.abs(tx.amount);
+        const totalAmount = installmentAmount * detection.totalCount;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: group, error: groupError } = await (supabase.from('installment_groups') as any)
+          .insert({
+            user_id: user.id,
+            bank_account_id: bankAccountId,
+            description: detection.baseDescription || tx.description,
+            total_amount: totalAmount,
+            installment_count: detection.totalCount,
+            installment_amount: installmentAmount,
+            first_date: tx.date, // data da primeira parcela conhecida (pode ser corrigida abaixo)
+            category: sanitizeCategory('compras'),
+            source: 'import',
+          })
+          .select('id')
+          .single();
+
+        if (groupError || !group) {
+          console.warn('[import] Etapa 5.5: falha ao criar grupo de parcelas:', groupError?.message);
+          continue;
+        }
+
+        installmentMap.set(detection.transactionIndex, {
+          groupId: group.id,
+          installmentNumber: detection.currentNumber,
+        });
+
+        // Calcular data da primeira parcela baseado na parcela atual
+        // Se a parcela atual é a 3ª e hoje é jan, então a 1ª foi em nov (jan - 2 meses)
+        const firstDate = (() => {
+          const d = new Date(tx.date + 'T12:00:00Z');
+          d.setUTCMonth(d.getUTCMonth() - (detection.currentNumber - 1));
+          return d.toISOString().slice(0, 10);
+        })();
+
+        // Atualizar first_date com cálculo correto
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from('installment_groups') as any)
+          .update({ first_date: firstDate })
+          .eq('id', group.id);
+
+        // Gerar parcelas futuras como agendamentos
+        const futureInstallments = generateFutureInstallments(
+          {
+            id: group.id,
+            user_id: user.id,
+            bank_account_id: bankAccountId,
+            description: detection.baseDescription || tx.description,
+            installment_count: detection.totalCount,
+            installment_amount: installmentAmount,
+            first_date: firstDate,
+            category: 'compras',
+          },
+          detection.currentNumber,
+        );
+
+        if (futureInstallments.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.from('scheduled_transactions') as any).insert(futureInstallments);
+        }
+      } catch (err) {
+        console.warn('[import] Etapa 5.5: erro ao processar parcela:', err);
+        // Não interromper o import por falha na detecção de parcelas
+      }
+    }
+  }
+
   // ── Etapa 6: Dedup e insert das transações ──────────────────
   let newTransactions: typeof parsedTransactions;
   let duplicatesSkipped: number;
@@ -200,18 +284,26 @@ export async function POST(request: Request) {
 
     if (newTransactions.length > 0) {
       const { error: insertError } = await supabase.from('transactions').insert(
-        newTransactions.map((t) => ({
-          user_id: user.id,
-          bank_account_id: bankAccountId,
-          import_id: importId,
-          external_id: t.external_id,
-          date: t.date,
-          description: t.description,
-          amount: t.amount,
-          type: t.type,
-          category: 'outros',
-          category_source: 'pending' as const,
-        })),
+        newTransactions.map((t) => {
+          // Recalcular índice original no parsedTransactions para buscar no installmentMap
+          const globalIndex = parsedTransactions.findIndex((p) => p.external_id === t.external_id);
+          const installmentInfo = installmentMap.get(globalIndex);
+
+          return {
+            user_id: user.id,
+            bank_account_id: bankAccountId,
+            import_id: importId,
+            external_id: t.external_id,
+            date: t.date,
+            description: t.description,
+            amount: t.amount,
+            type: t.type,
+            category: 'outros',
+            category_source: 'pending' as const,
+            installment_group_id: installmentInfo?.groupId ?? null,
+            installment_number: installmentInfo?.installmentNumber ?? null,
+          };
+        }),
       );
 
       if (insertError) {
@@ -269,5 +361,6 @@ export async function POST(request: Request) {
     transactionCount: newTransactions.length,
     duplicatesSkipped,
     status: 'categorizing',
+    detectedInstallments: detectedInstallments.length,
   });
 }

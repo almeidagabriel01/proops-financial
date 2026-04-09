@@ -16,6 +16,12 @@ export interface PlanCapabilities {
   aiModel: string;
   aiMonthlyLimit: number;
   maxBankAccounts: number;
+  // Planejamento financeiro
+  maxBudgetCategories: number;
+  maxRecurringRules: number;
+  maxGoals: number;
+  cashFlowMonthsAhead: number;
+  canUseRecurringAutoDetect: boolean;
 }
 
 const defaults: PlanCapabilities = {
@@ -25,9 +31,14 @@ const defaults: PlanCapabilities = {
   trialDaysLeft: 0,
   canUseAudio: false,
   canUseFunctionCalling: false,
-  aiModel: 'claude-haiku-4-5-20251001',
+  aiModel: 'gemini-2.0-flash',
   aiMonthlyLimit: 50,
   maxBankAccounts: 3,
+  maxBudgetCategories: 3,
+  maxRecurringRules: 5,
+  maxGoals: 2,
+  cashFlowMonthsAhead: 1,
+  canUseRecurringAutoDetect: false,
 };
 
 export function computePlanCapabilities(
@@ -50,9 +61,14 @@ export function computePlanCapabilities(
     trialDaysLeft,
     canUseAudio: isPro && profile.audio_enabled,
     canUseFunctionCalling: isPro,
-    aiModel: isPro ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    aiModel: isPro ? 'gemini-2.5-flash' : 'gemini-2.0-flash',
     aiMonthlyLimit: isPro ? 200 : 50,
     maxBankAccounts: isPro ? Infinity : 3,
+    maxBudgetCategories: isPro ? Infinity : 3,
+    maxRecurringRules: isPro ? Infinity : 5,
+    maxGoals: isPro ? Infinity : 2,
+    cashFlowMonthsAhead: isPro ? 12 : 1,
+    canUseRecurringAutoDetect: isPro,
   };
 }
 
