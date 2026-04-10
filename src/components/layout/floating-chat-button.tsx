@@ -31,7 +31,7 @@ export function FloatingChatButton() {
         style={!isDesktop ? { bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
         className={cn(
           'fixed z-40 flex h-12 w-12 items-center justify-center rounded-full',
-          'bg-primary text-primary-foreground shadow-lg',
+          'bg-secondary text-secondary-foreground shadow-lg ring-1 ring-border',
           'transition-all duration-300 ease-in-out',
           // Mobile: safe area via inline style acima
           'right-4',

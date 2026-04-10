@@ -283,11 +283,11 @@ export default function TransactionsPage() {
         onMutated={refresh}
       />
 
-      {/* FAB — mobile only. Usa style para calcular bottom considerando safe area */}
+      {/* FAB — mobile only. Posicionado acima do FloatingChatButton (que fica a 5rem do fundo) */}
       <Button
         size="lg"
         className="fixed right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg lg:hidden"
-        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
+        style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}
         aria-label="Adicionar transação"
         onClick={() => setFormOpen(true)}
       >
