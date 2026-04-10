@@ -3,8 +3,13 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { AnimationObserver } from '@/components/landing/animations';
 import { MobileMenuButton } from '@/components/landing/mobile-nav';
+import {
+  HeroFade,
+  FadeUp,
+  StaggerContainer,
+  StaggerItem,
+} from '@/components/landing/motion-primitives';
 
 export const metadata: Metadata = {
   title: 'Finansim — Suas finanças, finalmente organizadas',
@@ -47,7 +52,6 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-dvh bg-white text-zinc-950 dark:bg-zinc-950 dark:text-white">
-      <AnimationObserver />
       <LandingNav />
       <main>
         <HeroSection />
@@ -102,7 +106,7 @@ function LandingNav() {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   HERO — animações via CSS keyframes (sem JS, sem flash)
+   HERO
 ══════════════════════════════════════════════════════════════ */
 
 function HeroSection() {
@@ -111,15 +115,15 @@ function HeroSection() {
       <div className="mx-auto max-w-5xl">
 
         {/* Badge */}
-        <div className="hero-anim hero-1 mb-8 flex justify-center">
+        <HeroFade delay={0} className="mb-8 flex justify-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-zinc-50 px-3.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
             <span aria-hidden="true" className="text-zinc-400 dark:text-zinc-600">✦</span>
             7 dias grátis no plano Pro — sem cartão de crédito
           </span>
-        </div>
+        </HeroFade>
 
         {/* Headline */}
-        <div className="hero-anim hero-2 mb-8 text-center">
+        <HeroFade delay={0.13} className="mb-8 text-center">
           <h1 className="text-5xl font-bold leading-none tracking-tighter text-zinc-950 dark:text-white md:text-7xl lg:text-8xl">
             Suas finanças,
             <br />
@@ -127,18 +131,18 @@ function HeroSection() {
             <br />
             <span className="text-zinc-400 dark:text-zinc-600">organizadas.</span>
           </h1>
-        </div>
+        </HeroFade>
 
         {/* Subheadline */}
-        <div className="hero-anim hero-3 mb-10 flex justify-center">
+        <HeroFade delay={0.26} className="mb-10 flex justify-center">
           <p className="max-w-md text-center text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
             Importe extratos, deixe a IA categorizar automaticamente e converse com
             seu assistente financeiro pessoal em português.
           </p>
-        </div>
+        </HeroFade>
 
         {/* CTAs */}
-        <div className="hero-anim hero-4 mb-16 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <HeroFade delay={0.39} className="mb-16 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/signup"
             className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 hover:shadow-lg dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 sm:w-auto"
@@ -151,10 +155,10 @@ function HeroSection() {
           >
             Ver como funciona
           </a>
-        </div>
+        </HeroFade>
 
         {/* Dashboard Mockup */}
-        <div className="hero-anim hero-5 relative mx-auto max-w-3xl">
+        <HeroFade delay={0.56} className="relative mx-auto max-w-3xl">
           {/* Bottom fade */}
           <div
             aria-hidden="true"
@@ -204,11 +208,7 @@ function HeroSection() {
                     <p className="text-sm font-bold text-zinc-950 dark:text-white sm:text-base">
                       {s.value}
                     </p>
-                    <p
-                      className={`mt-0.5 text-[10px] font-medium ${
-                        s.pos ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500 dark:text-rose-400'
-                      }`}
-                    >
+                    <p className={`mt-0.5 text-[10px] font-medium ${s.pos ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500 dark:text-rose-400'}`}>
                       {s.sub}
                     </p>
                   </div>
@@ -235,9 +235,7 @@ function HeroSection() {
                         style={{ height: bar.h }}
                         aria-label={bar.label}
                       />
-                      <span className="text-[8px] text-zinc-400 dark:text-zinc-500">
-                        {bar.label}
-                      </span>
+                      <span className="text-[8px] text-zinc-400 dark:text-zinc-500">{bar.label}</span>
                     </div>
                   ))}
                 </div>
@@ -261,22 +259,20 @@ function HeroSection() {
                         <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{tx.cat}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      {tx.val}
-                    </span>
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{tx.val}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        </div>
+        </HeroFade>
       </div>
     </section>
   );
 }
 
 /* ══════════════════════════════════════════════════════════════
-   COMO FUNCIONA — scroll-triggered
+   COMO FUNCIONA
 ══════════════════════════════════════════════════════════════ */
 
 function HowItWorksSection() {
@@ -302,14 +298,14 @@ function HowItWorksSection() {
     <section id="como-funciona" className="px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl">
 
-        <div className="scroll-hidden mb-16 text-center" data-scroll>
+        <FadeUp className="mb-16 text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Como funciona
           </p>
           <h2 className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
             Simples assim.
           </h2>
-        </div>
+        </FadeUp>
 
         <div className="relative grid gap-8 sm:grid-cols-3 sm:gap-6">
           {/* Connector line desktop */}
@@ -319,11 +315,7 @@ function HowItWorksSection() {
           />
 
           {steps.map((s, i) => (
-            <div
-              key={s.n}
-              data-scroll
-              className={`scroll-hidden scroll-delay-${i + 1} relative flex flex-col gap-4`}
-            >
+            <FadeUp key={s.n} delay={i * 0.12} className="relative flex flex-col gap-4">
               <div className="flex items-start gap-4 sm:flex-col sm:gap-5">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 sm:mx-auto">
                   <span className="text-xs font-bold tracking-widest text-zinc-400 dark:text-zinc-600">
@@ -337,7 +329,7 @@ function HowItWorksSection() {
                   <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{s.desc}</p>
                 </div>
               </div>
-            </div>
+            </FadeUp>
           ))}
         </div>
       </div>
@@ -346,7 +338,7 @@ function HowItWorksSection() {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   FEATURES — scroll-triggered com stagger
+   FEATURES
 ══════════════════════════════════════════════════════════════ */
 
 function FeaturesSection() {
@@ -393,21 +385,20 @@ function FeaturesSection() {
     <section className="bg-zinc-50 px-4 py-20 dark:bg-zinc-900/40 sm:py-28">
       <div className="mx-auto max-w-5xl">
 
-        <div className="scroll-hidden mb-16 text-center" data-scroll>
+        <FadeUp className="mb-16 text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Funcionalidades
           </p>
           <h2 className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
             Tudo que você precisa.
           </h2>
-        </div>
+        </FadeUp>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {features.map((f, i) => (
-            <div
+        <StaggerContainer className="grid gap-4 sm:grid-cols-2">
+          {features.map((f) => (
+            <StaggerItem
               key={f.title}
-              data-scroll
-              className={`scroll-hidden scroll-delay-${i + 1} group flex gap-4 rounded-2xl border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700`}
+              className="group flex gap-4 rounded-2xl border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                 {f.icon}
@@ -416,16 +407,16 @@ function FeaturesSection() {
                 <h3 className="mb-1.5 text-sm font-bold text-zinc-950 dark:text-white">{f.title}</h3>
                 <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{f.desc}</p>
               </div>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
     </section>
   );
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PRICING — scroll-triggered
+   PRICING
 ══════════════════════════════════════════════════════════════ */
 
 const BASIC_FEATURES = [
@@ -455,7 +446,7 @@ function PricingSection() {
     <section id="precos" className="px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl">
 
-        <div className="scroll-hidden mb-16 text-center" data-scroll>
+        <FadeUp className="mb-16 text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Preços
           </p>
@@ -463,14 +454,11 @@ function PricingSection() {
             Preço justo, sem surpresas.
           </h2>
           <p className="text-zinc-500 dark:text-zinc-400">7 dias grátis, cancele quando quiser.</p>
-        </div>
+        </FadeUp>
 
-        <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+        <StaggerContainer className="grid gap-4 sm:grid-cols-2 sm:items-start">
           {/* Basic */}
-          <div
-            data-scroll
-            className="scroll-hidden scroll-delay-1 flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900"
-          >
+          <StaggerItem className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-zinc-400 dark:text-zinc-500">
               Basic
             </p>
@@ -482,14 +470,12 @@ function PricingSection() {
             <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
               Controle financeiro completo sem complicação.
             </p>
-
             <Link
               href="/signup"
               className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-300 bg-white text-sm font-semibold text-zinc-950 transition-all hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
             >
               Começar trial gratuito
             </Link>
-
             <ul className="flex flex-col gap-3">
               {BASIC_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-400">
@@ -498,19 +484,15 @@ function PricingSection() {
                 </li>
               ))}
             </ul>
-          </div>
+          </StaggerItem>
 
           {/* Pro — inverted card */}
-          <div
-            data-scroll
-            className="scroll-hidden scroll-delay-2 relative flex flex-col rounded-2xl bg-zinc-950 p-6 dark:bg-zinc-100"
-          >
+          <StaggerItem className="relative flex flex-col rounded-2xl bg-zinc-950 p-6 dark:bg-zinc-100">
             <div className="absolute -top-3 left-6">
               <span className="inline-flex items-center rounded-full bg-zinc-950 px-3 py-0.5 text-xs font-bold text-white dark:bg-zinc-100 dark:text-zinc-950">
                 Mais popular
               </span>
             </div>
-
             <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">
               Pro
             </p>
@@ -522,14 +504,12 @@ function PricingSection() {
             <p className="mb-6 text-sm text-zinc-400 dark:text-zinc-600">
               O assistente financeiro completo com IA avançada.
             </p>
-
             <Link
               href="/signup"
               className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950 transition-all hover:scale-[1.01] hover:bg-zinc-100 hover:shadow-lg dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
             >
               Começar trial gratuito
             </Link>
-
             <ul className="flex flex-col gap-3">
               {PRO_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-400 dark:text-zinc-600">
@@ -538,12 +518,14 @@ function PricingSection() {
                 </li>
               ))}
             </ul>
-          </div>
-        </div>
+          </StaggerItem>
+        </StaggerContainer>
 
-        <p className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
-          Pagamento via Pix, boleto ou cartão. Sem fidelidade.
-        </p>
+        <FadeUp delay={0.2} className="mt-6 text-center">
+          <p className="text-xs text-zinc-400 dark:text-zinc-600">
+            Pagamento via Pix, boleto ou cartão. Sem fidelidade.
+          </p>
+        </FadeUp>
       </div>
     </section>
   );
@@ -564,13 +546,13 @@ function CheckMark({ inverted = false }: { inverted?: boolean }) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   CTA FINAL — scroll-triggered
+   CTA FINAL
 ══════════════════════════════════════════════════════════════ */
 
 function CtaFinalSection() {
   return (
     <section className="px-4 py-20 sm:py-28">
-      <div className="scroll-hidden mx-auto max-w-2xl text-center" data-scroll>
+      <FadeUp className="mx-auto max-w-2xl text-center">
         <h2 className="mb-3 text-5xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-6xl">
           Comece hoje.
         </h2>
@@ -583,7 +565,7 @@ function CtaFinalSection() {
         >
           Criar conta grátis
         </Link>
-      </div>
+      </FadeUp>
     </section>
   );
 }
