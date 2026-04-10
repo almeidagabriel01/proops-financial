@@ -276,7 +276,7 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
         <SheetHeader>
           <SheetTitle>Nova Transação Recorrente</SheetTitle>
         </SheetHeader>
-        <div className="mt-4">
+        <div className="mt-4 px-4 pb-2">
           {formBody}
           {actionButtons('sheet')}
         </div>

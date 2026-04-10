@@ -235,7 +235,7 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
         <SheetHeader>
           <SheetTitle>Agendar Conta</SheetTitle>
         </SheetHeader>
-        <div className="mt-4">
+        <div className="mt-4 px-4 pb-2">
           {formBody}
           {actionButtons('sheet')}
         </div>

@@ -397,7 +397,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
-        <div className="mt-4">
+        <div className="mt-4 px-4 pb-2">
           {formBody}
           {actionButtons('sheet')}
         </div>

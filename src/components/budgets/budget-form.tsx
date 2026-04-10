@@ -132,7 +132,7 @@ export function BudgetForm({ open, onClose, onSubmit, editing }: BudgetFormProps
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
-        <div className="mt-4">
+        <div className="mt-4 px-4 pb-2">
           {formBody}
           {actionButtons('sheet')}
         </div>
