@@ -70,73 +70,85 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <SheetContent side="bottom" className="rounded-t-2xl">
-        <SheetHeader>
-          <SheetTitle>Agendar Conta</SheetTitle>
-        </SheetHeader>
+      {/*
+       * max-h-[90dvh] + overflow-y-auto: evita que a modal ultrapasse
+       * a viewport em telas pequenas — o conteúdo fica rolável.
+       * O conteúdo interno é limitado a max-w-lg para não ficar
+       * muito largo em telas desktop.
+       */}
+      <SheetContent
+        side="bottom"
+        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl"
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="mx-auto w-full max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Agendar Conta</SheetTitle>
+          </SheetHeader>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-4 space-y-4 pb-4">
-          {/* Tipo */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === 'debit' ? 'bg-destructive text-destructive-foreground' : 'hover:bg-muted'}`}
-              onClick={() => { setType('debit'); setCategory('outros'); }}
-            >
-              Despesa
-            </button>
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === 'credit' ? 'bg-green-600 text-white' : 'hover:bg-muted'}`}
-              onClick={() => { setType('credit'); setCategory('salario'); }}
-            >
-              Receita
-            </button>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-desc">Descrição</label>
-            <Input id="sched-desc" placeholder="Ex: Aluguel, Salário..." value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-amount">Valor (R$)</label>
-            <Input id="sched-amount" type="number" step="0.01" min="0.01" placeholder="0,00" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} className="text-base" />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-date">Vencimento</label>
-            <Input id="sched-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-
-          <div>
-            <p className="mb-2 text-sm font-medium text-muted-foreground">Categoria</p>
-            <CategorySelector currentCategory={category} onSelect={setCategory} />
-          </div>
-
-          {bankAccounts.length > 1 && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Conta</label>
-              <Select value={bankAccountId} onValueChange={(v) => { if (v) setBankAccountId(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {bankAccounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <form onSubmit={(e) => void handleSubmit(e)} className="mt-4 space-y-4">
+            {/* Tipo */}
+            <div className="flex overflow-hidden rounded-lg border border-border">
+              <button
+                type="button"
+                className={`min-h-[44px] flex-1 py-2 text-sm font-medium transition-colors ${type === 'debit' ? 'bg-destructive text-destructive-foreground' : 'hover:bg-muted'}`}
+                onClick={() => { setType('debit'); setCategory('outros'); }}
+              >
+                Despesa
+              </button>
+              <button
+                type="button"
+                className={`min-h-[44px] flex-1 py-2 text-sm font-medium transition-colors ${type === 'credit' ? 'bg-green-600 text-white' : 'hover:bg-muted'}`}
+                onClick={() => { setType('credit'); setCategory('salario'); }}
+              >
+                Receita
+              </button>
             </div>
-          )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-desc">Descrição</label>
+              <Input id="sched-desc" placeholder="Ex: Aluguel, Salário..." value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
 
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando...' : 'Agendar'}
-            </Button>
-          </div>
-        </form>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-amount">Valor (R$)</label>
+              <Input id="sched-amount" type="number" step="0.01" min="0.01" placeholder="0,00" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} className="text-base" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-date">Vencimento</label>
+              <Input id="sched-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Categoria</label>
+              <CategorySelector currentCategory={category} onSelect={setCategory} />
+            </div>
+
+            {bankAccounts.length > 1 && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Conta</label>
+                <Select value={bankAccountId} onValueChange={(v) => { if (v) setBankAccountId(v); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
+              <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvando...' : 'Agendar'}
+              </Button>
+            </div>
+          </form>
+        </div>
       </SheetContent>
     </Sheet>
   );
