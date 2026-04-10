@@ -372,6 +372,45 @@ export type Database = {
           },
         ];
       };
+      transaction_tags: {
+        Row: {
+          id: string;
+          transaction_id: string;
+          user_id: string;
+          tag: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          transaction_id: string;
+          user_id: string;
+          tag: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          transaction_id?: string;
+          user_id?: string;
+          tag?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'transaction_tags_transaction_id_fkey';
+            columns: ['transaction_id'];
+            isOneToOne: false;
+            referencedRelation: 'transactions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'transaction_tags_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       conversations: {
         Row: {
           id: string;

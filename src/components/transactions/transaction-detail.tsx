@@ -1,27 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Tag, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { CategorySelector } from '@/components/transactions/category-selector';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { saveCorrection, findSameDescriptionIds } from '@/lib/ai/category-correction';
 import { createClient } from '@/lib/supabase/client';
-import type { Transaction } from '@/hooks/use-transactions';
+import type { TransactionWithTags } from '@/hooks/use-transactions';
 import type { Category } from '@/lib/billing/plans';
 
 type DetailMode = 'view' | 'selecting' | 'confirming' | 'saving';
 type NoteSaveState = 'idle' | 'saving' | 'saved';
 
 interface TransactionDetailProps {
-  transaction: Transaction | null;
+  transaction: TransactionWithTags | null;
   open: boolean;
   onClose: () => void;
   onCategoryUpdated: (transactionId: string, newCategory: string) => void;
+  onTagsUpdated?: (tags: string[]) => void;
 }
 
 export function TransactionDetail({
@@ -29,6 +32,7 @@ export function TransactionDetail({
   open,
   onClose,
   onCategoryUpdated,
+  onTagsUpdated,
 }: TransactionDetailProps) {
   const [mode, setMode] = useState<DetailMode>('view');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -39,6 +43,13 @@ export function TransactionDetail({
   const [noteValue, setNoteValue] = useState(tx?.notes ?? '');
   const [savedNote, setSavedNote] = useState(tx?.notes ?? '');
   const [noteSaveState, setNoteSaveState] = useState<NoteSaveState>('idle');
+
+  // Tags state
+  const [tags, setTags] = useState<string[]>((tx?.transaction_tags ?? []).map((t) => t.tag));
+  const [tagInput, setTagInput] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const tagDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const supabase = createClient();
 
@@ -56,15 +67,47 @@ export function TransactionDetail({
     }
   }
 
-  // Reset note state when a new transaction opens
+  // Reset all state when a new transaction opens
   function handleSheetOpen(isOpen: boolean) {
     if (isOpen && tx) {
       setNoteValue(tx.notes ?? '');
       setSavedNote(tx.notes ?? '');
       setNoteSaveState('idle');
+      setTags((tx.transaction_tags ?? []).map((t) => t.tag));
+      setTagInput('');
+      setSuggestions([]);
     }
     handleOpenChange(isOpen);
   }
+
+  // Fetch autocomplete suggestions with debounce
+  useEffect(() => {
+    if (!tx) return;
+    clearTimeout(tagDebounceRef.current);
+    if (!tagInput.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    tagDebounceRef.current = setTimeout(async () => {
+      setIsFetchingSuggestions(true);
+      try {
+        const res = await fetch(
+          `/api/tags/autocomplete?q=${encodeURIComponent(tagInput.trim().toLowerCase())}`,
+        );
+        if (res.ok) {
+          const data = (await res.json()) as { suggestions: string[] };
+          // Filter out tags already on this transaction
+          setSuggestions(data.suggestions.filter((s) => !tags.includes(s)));
+        }
+      } catch {
+        // Silently ignore autocomplete errors
+      } finally {
+        setIsFetchingSuggestions(false);
+      }
+    }, 300);
+    return () => clearTimeout(tagDebounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagInput, tx?.id]);
 
   // ── Note save on blur ────────────────────────────────────────────────────────
   async function handleNoteBlur() {
@@ -95,6 +138,83 @@ export function TransactionDetail({
       setNoteValue(savedNote);
       setNoteSaveState('idle');
       toast.error('Erro ao salvar nota — tente novamente');
+    }
+  }
+
+  // ── Add tag ──────────────────────────────────────────────────────────────────
+  async function handleAddTag(rawTag: string) {
+    if (!tx) return;
+    const tag = rawTag.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!tag) return;
+    if (tag.length > 50) {
+      toast.error('Tag muito longa (máximo 50 caracteres)');
+      return;
+    }
+    if (tags.includes(tag)) {
+      setTagInput('');
+      setSuggestions([]);
+      return;
+    }
+
+    // Optimistic update
+    const newTags = [...tags, tag];
+    setTags(newTags);
+    setTagInput('');
+    setSuggestions([]);
+    onTagsUpdated?.(newTags);
+
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag }),
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? 'Erro ao adicionar tag');
+      }
+    } catch (err) {
+      console.error('[transaction-detail] add tag error:', err);
+      // Rollback
+      const rolledBack = tags.filter((t) => t !== tag);
+      setTags(rolledBack);
+      onTagsUpdated?.(rolledBack);
+      toast.error('Erro ao adicionar tag — tente novamente');
+    }
+  }
+
+  // ── Remove tag ───────────────────────────────────────────────────────────────
+  async function handleRemoveTag(tag: string) {
+    if (!tx) return;
+
+    // Optimistic update
+    const newTags = tags.filter((t) => t !== tag);
+    setTags(newTags);
+    onTagsUpdated?.(newTags);
+
+    try {
+      const res = await fetch(
+        `/api/transactions/${tx.id}/tags/${encodeURIComponent(tag)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok && res.status !== 404) {
+        throw new Error('Erro ao remover tag');
+      }
+    } catch (err) {
+      console.error('[transaction-detail] remove tag error:', err);
+      // Rollback
+      const rolledBack = [...tags];
+      setTags(rolledBack);
+      onTagsUpdated?.(rolledBack);
+      toast.error('Erro ao remover tag — tente novamente');
+    }
+  }
+
+  // ── Tag input keyboard handler ───────────────────────────────────────────────
+  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      void handleAddTag(tagInput);
     }
   }
 
@@ -210,6 +330,70 @@ export function TransactionDetail({
                   <CurrentIcon className="h-4 w-4" style={{ color: currentConfig.color }} />
                   <span className="text-sm font-medium text-foreground">{currentConfig.label}</span>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Tags ─────────────────────────────────────────────────── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Tags</span>
+              </div>
+
+              {/* Existing tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="gap-1 px-2 py-0.5 text-xs font-normal"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveTag(tag)}
+                        aria-label={`Remover tag ${tag}`}
+                        className="ml-0.5 rounded-full hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Tag input with autocomplete */}
+              <div className="relative">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+                  placeholder="Adicionar tag (Enter ou vírgula)..."
+                  className="h-8 text-sm"
+                  maxLength={50}
+                />
+                {isFetchingSuggestions && (
+                  <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+                )}
+                {suggestions.length > 0 && (
+                  <div className="mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // prevent blur before click
+                          void handleAddTag(s);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

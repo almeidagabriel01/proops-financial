@@ -46,13 +46,17 @@ export default function TransactionsPage() {
   const initialType = VALID_TYPES.includes(rawType) ? rawType : 'all';
   const initialSearch = searchParams.get('search') ?? '';
   const initialCategory = searchParams.get('category') ?? '';
+  const initialTag = searchParams.get('tag') ?? '';
 
   const [monthFilter, setMonthFilter] = useState<string>(initialMonth);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialType);
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [categoryFilter, setCategoryFilter] = useState(initialCategory);
+  const [tagFilter, setTagFilter] = useState(initialTag);
+  const [tagInput, setTagInput] = useState(initialTag);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const tagDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Debounce search input
   useEffect(() => {
@@ -63,15 +67,25 @@ export default function TransactionsPage() {
     return () => clearTimeout(debounceRef.current);
   }, [searchInput]);
 
+  // Debounce tag filter input
+  useEffect(() => {
+    clearTimeout(tagDebounceRef.current);
+    tagDebounceRef.current = setTimeout(() => {
+      setTagFilter(tagInput);
+    }, 400);
+    return () => clearTimeout(tagDebounceRef.current);
+  }, [tagInput]);
+
   // Sync filters to URL search params
   const syncToUrl = useCallback(
-    (month: string, t: TypeFilter, s: string, cat: string) => {
+    (month: string, t: TypeFilter, s: string, cat: string, tag: string) => {
       const params = new URLSearchParams();
       const now = currentYM();
       if (month !== now) params.set('month', month);
       if (t !== 'all') params.set('type', t);
       if (s) params.set('search', s);
       if (cat) params.set('category', cat);
+      if (tag) params.set('tag', tag);
       router.replace(`/transactions${params.size ? '?' + params.toString() : ''}`, {
         scroll: false,
       });
@@ -81,19 +95,25 @@ export default function TransactionsPage() {
 
   function handleMonthChange(month: string) {
     setMonthFilter(month);
-    syncToUrl(month, typeFilter, debouncedSearch, categoryFilter);
+    syncToUrl(month, typeFilter, debouncedSearch, categoryFilter, tagFilter);
   }
 
   function handleTypeChange(value: TypeFilter | null) {
     if (!value) return;
     setTypeFilter(value);
-    syncToUrl(monthFilter, value, debouncedSearch, categoryFilter);
+    syncToUrl(monthFilter, value, debouncedSearch, categoryFilter, tagFilter);
   }
 
   function handleCategoryChange(value: string | null) {
     const cat = !value || value === 'all' ? '' : value;
     setCategoryFilter(cat);
-    syncToUrl(monthFilter, typeFilter, debouncedSearch, cat);
+    syncToUrl(monthFilter, typeFilter, debouncedSearch, cat, tagFilter);
+  }
+
+  function handleTagClear() {
+    setTagInput('');
+    setTagFilter('');
+    syncToUrl(monthFilter, typeFilter, debouncedSearch, categoryFilter, '');
   }
 
   const filters = useMemo(() => {
@@ -104,8 +124,9 @@ export default function TransactionsPage() {
       type: typeFilter,
       search: debouncedSearch,
       category: categoryFilter || undefined,
+      tag: tagFilter || undefined,
     };
-  }, [monthFilter, typeFilter, debouncedSearch, categoryFilter]);
+  }, [monthFilter, typeFilter, debouncedSearch, categoryFilter, tagFilter]);
 
   const { transactions, isLoading, isLoadingMore, error, hasMore, loadMore, refresh } =
     useTransactions(filters);
@@ -160,6 +181,19 @@ export default function TransactionsPage() {
               </Button>
             )}
           </div>
+          <div className="relative flex items-center gap-1">
+            <Input
+              placeholder="Filtrar por tag..."
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              className="h-9 w-36 text-xs"
+            />
+            {tagInput && (
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" aria-label="Limpar tag" onClick={handleTagClear}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Mobile: stacked */}
@@ -197,6 +231,19 @@ export default function TransactionsPage() {
                 </Button>
               )}
             </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Input
+              placeholder="Tag..."
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              className="h-9 flex-1 text-xs"
+            />
+            {tagInput && (
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" aria-label="Limpar tag" onClick={handleTagClear}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

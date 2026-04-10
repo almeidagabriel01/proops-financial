@@ -12,11 +12,11 @@ import { TransactionActions } from '@/components/transactions/transaction-action
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
-import type { Transaction } from '@/hooks/use-transactions';
+import type { TransactionWithTags } from '@/hooks/use-transactions';
 import type { Category } from '@/lib/billing/plans';
 
 interface TransactionListProps {
-  transactions: Transaction[];
+  transactions: TransactionWithTags[];
   isLoading: boolean;
   isLoadingMore: boolean;
   error: string | null;
@@ -32,7 +32,7 @@ function TransactionTableRow({
   transaction: tx,
   onMutated,
 }: {
-  transaction: Transaction;
+  transaction: TransactionWithTags;
   onMutated?: () => void;
 }) {
   const [detailOpen, setDetailOpen] = useState(false);

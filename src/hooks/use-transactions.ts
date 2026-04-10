@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import type { Tables } from '@/lib/supabase/types';
 
 export type Transaction = Tables<'transactions'>;
+export type TransactionWithTags = Transaction & {
+  transaction_tags?: { tag: string }[];
+};
 
 export interface TransactionFilters {
   startDate?: string;
@@ -12,6 +15,7 @@ export interface TransactionFilters {
   type?: 'all' | 'credit' | 'debit';
   search?: string;
   category?: string;
+  tag?: string;
 }
 
 export interface TransactionSummary {
@@ -23,7 +27,7 @@ export interface TransactionSummary {
 const PAGE_SIZE = 50;
 
 export function useTransactions(filters: TransactionFilters = {}) {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TransactionWithTags[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +39,15 @@ export function useTransactions(filters: TransactionFilters = {}) {
 
   const buildQuery = useCallback(
     (offset: number, limit: number) => {
+      // When filtering by tag use an inner join so only tagged transactions are returned.
+      // Otherwise use outer join so all transactions include their tags (if any).
+      const tagJoin = filters.tag?.trim()
+        ? 'transaction_tags!inner(tag)'
+        : 'transaction_tags(tag)';
+
       let q = supabase
         .from('transactions')
-        .select('*', { count: 'exact' })
+        .select(`*, ${tagJoin}`, { count: 'exact' })
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -56,11 +66,12 @@ export function useTransactions(filters: TransactionFilters = {}) {
         q = q.ilike('description_search', `%${normalized}%`);
       }
       if (filters.category?.trim()) q = q.eq('category', filters.category);
+      if (filters.tag?.trim()) q = q.eq('transaction_tags.tag', filters.tag.trim());
 
       return q;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters.startDate, filters.endDate, filters.type, filters.search, filters.category],
+    [filters.startDate, filters.endDate, filters.type, filters.search, filters.category, filters.tag],
   );
 
   const load = useCallback(async () => {
@@ -71,7 +82,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
     try {
       const { data, count, error: err } = await buildQuery(0, PAGE_SIZE);
       if (err) throw err;
-      setTransactions(data ?? []);
+      setTransactions((data ?? []) as TransactionWithTags[]);
       setTotal(count ?? 0);
       setHasMore((count ?? 0) > PAGE_SIZE);
       offsetRef.current = PAGE_SIZE;
@@ -89,7 +100,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
     try {
       const { data, error: err } = await buildQuery(offsetRef.current, PAGE_SIZE);
       if (err) throw err;
-      setTransactions((prev) => [...prev, ...(data ?? [])]);
+      setTransactions((prev) => [...prev, ...((data ?? []) as TransactionWithTags[])]);
       offsetRef.current += PAGE_SIZE;
       setHasMore(offsetRef.current < total);
     } catch {
@@ -103,7 +114,16 @@ export function useTransactions(filters: TransactionFilters = {}) {
     load();
   }, [load]);
 
-  return { transactions, isLoading, isLoadingMore, error, hasMore, total, loadMore, refresh: load };
+  return { transactions, isLoading, isLoadingMore, error, hasMore, total, loadMore, refresh: load } as {
+    transactions: TransactionWithTags[];
+    isLoading: boolean;
+    isLoadingMore: boolean;
+    error: string | null;
+    hasMore: boolean;
+    total: number;
+    loadMore: () => Promise<void>;
+    refresh: () => Promise<void>;
+  };
 }
 
 export async function getTransactionSummary(
