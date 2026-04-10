@@ -157,6 +157,7 @@ export type Database = {
           installment_group_id: string | null;
           installment_number: number | null;
           recurring_rule_id: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -176,6 +177,7 @@ export type Database = {
           installment_group_id?: string | null;
           installment_number?: number | null;
           recurring_rule_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -195,6 +197,7 @@ export type Database = {
           installment_group_id?: string | null;
           installment_number?: number | null;
           recurring_rule_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

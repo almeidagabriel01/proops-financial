@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateRelative } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,12 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
               </Badge>
               {isManual && (
                 <span className="text-[10px] text-muted-foreground">Manual</span>
+              )}
+              {tx.notes && (
+                <FileText
+                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                  aria-label="Tem nota"
+                />
               )}
             </div>
           </div>

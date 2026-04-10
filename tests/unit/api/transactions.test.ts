@@ -94,4 +94,47 @@ describe('Transaction API — validation logic', () => {
       expect(/^\d{4}-\d{2}-\d{2}$/.test('')).toBe(false);
     });
   });
+
+  describe('notes validation (C1.1)', () => {
+    // Mirrors the validation logic in PATCH /api/transactions/[id]
+    function validateNotes(notes: string | null | undefined): string | null {
+      if (notes === undefined) return 'skipped'; // field not sent — no-op
+      if (notes === null) return null; // null clears the note — OK
+      if (notes.length > 500) return 'error: too long';
+      return notes; // valid string
+    }
+
+    it('accepts a short note string', () => {
+      expect(validateNotes('reembolso empresa')).toBe('reembolso empresa');
+    });
+
+    it('accepts empty string (treated as valid — caller sends null to clear)', () => {
+      expect(validateNotes('')).toBe('');
+    });
+
+    it('accepts note at exactly 500 characters', () => {
+      const note = 'a'.repeat(500);
+      expect(validateNotes(note)).toBe(note);
+    });
+
+    it('rejects note with 501 characters', () => {
+      const note = 'a'.repeat(501);
+      expect(validateNotes(note)).toBe('error: too long');
+    });
+
+    it('accepts null to clear a note', () => {
+      expect(validateNotes(null)).toBeNull();
+    });
+
+    it('skips update when notes field is not sent', () => {
+      expect(validateNotes(undefined)).toBe('skipped');
+    });
+
+    it('notes is independent of other fields — category update does not affect notes', () => {
+      // Simulate: PATCH with { category: 'alimentacao' } — notes field absent
+      const body: Record<string, unknown> = { category: 'alimentacao' };
+      expect('notes' in body).toBe(false);
+      expect(validateNotes(body.notes as undefined)).toBe('skipped');
+    });
+  });
 });

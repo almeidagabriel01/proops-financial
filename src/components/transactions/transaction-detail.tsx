@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { CategorySelector } from '@/components/transactions/category-selector';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -13,6 +15,7 @@ import type { Transaction } from '@/hooks/use-transactions';
 import type { Category } from '@/lib/billing/plans';
 
 type DetailMode = 'view' | 'selecting' | 'confirming' | 'saving';
+type NoteSaveState = 'idle' | 'saving' | 'saved';
 
 interface TransactionDetailProps {
   transaction: Transaction | null;
@@ -32,6 +35,11 @@ export function TransactionDetail({
   const [sameIds, setSameIds] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Note state
+  const [noteValue, setNoteValue] = useState(tx?.notes ?? '');
+  const [savedNote, setSavedNote] = useState(tx?.notes ?? '');
+  const [noteSaveState, setNoteSaveState] = useState<NoteSaveState>('idle');
+
   const supabase = createClient();
 
   function resetState() {
@@ -44,8 +52,49 @@ export function TransactionDetail({
   function handleOpenChange(isOpen: boolean) {
     if (!isOpen && mode !== 'saving') {
       onClose();
-      // Reset state after Sheet close animation finishes
       setTimeout(resetState, 300);
+    }
+  }
+
+  // Reset note state when a new transaction opens
+  function handleSheetOpen(isOpen: boolean) {
+    if (isOpen && tx) {
+      setNoteValue(tx.notes ?? '');
+      setSavedNote(tx.notes ?? '');
+      setNoteSaveState('idle');
+    }
+    handleOpenChange(isOpen);
+  }
+
+  // ── Note save on blur ────────────────────────────────────────────────────────
+  async function handleNoteBlur() {
+    if (!tx) return;
+    const trimmed = noteValue.trim();
+    const normalizedSaved = savedNote.trim();
+    if (trimmed === normalizedSaved) return;
+
+    setNoteSaveState('saving');
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: trimmed === '' ? null : trimmed }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? 'Erro ao salvar nota');
+      }
+
+      setSavedNote(trimmed);
+      setNoteValue(trimmed);
+      setNoteSaveState('saved');
+      setTimeout(() => setNoteSaveState('idle'), 1500);
+    } catch (err) {
+      console.error('[transaction-detail] note save error:', err);
+      setNoteValue(savedNote);
+      setNoteSaveState('idle');
+      toast.error('Erro ao salvar nota — tente novamente');
     }
   }
 
@@ -54,7 +103,7 @@ export function TransactionDetail({
     if (!tx) return;
     setSelectedCategory(category);
     setSaveError(null);
-    setMode('saving'); // show spinner while querying duplicates
+    setMode('saving');
 
     findSameDescriptionIds(supabase, tx.user_id, tx.description, tx.id)
       .then((ids) => {
@@ -118,7 +167,7 @@ export function TransactionDetail({
   const isCredit = tx.type === 'credit';
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={open} onOpenChange={handleSheetOpen}>
       <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-8">
         <SheetHeader className="pb-4 pt-2">
           <SheetTitle>
@@ -162,6 +211,35 @@ export function TransactionDetail({
                   <span className="text-sm font-medium text-foreground">{currentConfig.label}</span>
                 </div>
               </div>
+            </div>
+
+            {/* ── Nota ───────────────────────────────────────────────────── */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="transaction-note" className="text-xs font-medium text-muted-foreground">
+                  {noteValue ? 'Nota' : 'Adicionar nota'}
+                </label>
+                {noteSaveState === 'saving' && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                )}
+                {noteSaveState === 'saved' && (
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                )}
+              </div>
+              <Textarea
+                id="transaction-note"
+                value={noteValue}
+                onChange={(e) => setNoteValue(e.target.value)}
+                onBlur={() => void handleNoteBlur()}
+                maxLength={500}
+                placeholder="Ex: reembolso, presente, motivo específico..."
+                className="min-h-[72px] resize-none text-sm"
+              />
+              {noteValue.length > 450 && (
+                <p className="text-right text-[10px] text-muted-foreground">
+                  {noteValue.length}/500
+                </p>
+              )}
             </div>
 
             <Button className="w-full" onClick={() => setMode('selecting')}>
