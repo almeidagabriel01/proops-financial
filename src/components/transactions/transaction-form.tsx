@@ -302,7 +302,16 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             value={values.bank_account_id}
             onValueChange={(v) => setValues((prev) => ({ ...prev, bank_account_id: v ?? 'manual' }))}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue>
+                {values.bank_account_id === 'manual'
+                  ? 'Manual (criada automaticamente)'
+                  : (() => {
+                      const acc = accounts.find((a) => a.id === values.bank_account_id);
+                      return acc ? `${acc.bank_name}${acc.account_label ? ` — ${acc.account_label}` : ''}` : '';
+                    })()}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="manual">Manual (criada automaticamente)</SelectItem>
               {accounts.map((acc) => (

@@ -167,7 +167,7 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
             value={frequency}
             onValueChange={(v) => setFrequency(v as RecurringRule['frequency'])}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue>{FREQUENCY_LABELS[frequency]}</SelectValue></SelectTrigger>
             <SelectContent>
               {(Object.entries(FREQUENCY_LABELS) as [RecurringRule['frequency'], string][]).map(
                 ([val, label]) => (
@@ -208,7 +208,9 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
         <div>
           <label className="mb-1.5 block text-sm font-medium">Conta</label>
           <Select value={bankAccountId} onValueChange={(v) => { if (v) setBankAccountId(v); }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue>{bankAccounts.find((a) => a.id === bankAccountId)?.bank_name ?? ''}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {bankAccounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>

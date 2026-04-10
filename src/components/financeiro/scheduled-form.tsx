@@ -168,7 +168,9 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
         <div>
           <label className="mb-1.5 block text-sm font-medium">Conta</label>
           <Select value={bankAccountId} onValueChange={(v) => { if (v) setBankAccountId(v); }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue>{bankAccounts.find((a) => a.id === bankAccountId)?.bank_name ?? ''}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {bankAccounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>{a.bank_name}</SelectItem>
