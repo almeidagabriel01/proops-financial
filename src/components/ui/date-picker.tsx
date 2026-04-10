@@ -116,8 +116,8 @@ export function DatePicker({
         onClick={handleOpen}
         disabled={disabled}
         className={cn(
-          'flex w-full items-center gap-2.5 rounded-xl border border-input bg-background',
-          'px-3 py-2.5 text-sm transition-colors',
+          'flex h-10 w-full items-center gap-2.5 rounded-xl border border-input bg-background',
+          'px-3 text-sm transition-colors',
           'focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring',
           'hover:border-ring/50',
           !value ? 'text-muted-foreground' : 'text-foreground',
