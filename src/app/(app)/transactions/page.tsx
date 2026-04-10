@@ -131,11 +131,11 @@ export default function TransactionsPage() {
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-8">
         {/* Desktop: uma linha só */}
         <div className="hidden lg:flex items-center gap-3">
-          <MonthPickerFilter value={monthFilter} onChange={handleMonthChange} />
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input type="search" placeholder="Buscar..." className="pl-9 h-9 text-sm" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
+          <MonthPickerFilter value={monthFilter} onChange={handleMonthChange} />
           <Select value={typeFilter} onValueChange={handleTypeChange}>
             <SelectTrigger className="h-9 w-32 text-xs">{TYPE_LABELS[typeFilter]}</SelectTrigger>
             <SelectContent>
