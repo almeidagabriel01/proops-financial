@@ -183,22 +183,48 @@ html.transitioning *::after {
     box-shadow 0.3s ease !important;
 }
 
-/* ─── Landing page scroll animations ─── */
-.animate-target {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.6s ease,
-    transform 0.6s ease;
+/* ─── Landing: hero keyframe animations (auto-play, no JS) ─── */
+@keyframes land-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0px);
+  }
 }
-.animate-target.animate-in {
+
+.hero-anim {
+  animation: land-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-1 { animation-delay:   0ms; }
+.hero-2 { animation-delay: 130ms; }
+.hero-3 { animation-delay: 260ms; }
+.hero-4 { animation-delay: 390ms; }
+.hero-5 { animation-delay: 560ms; }
+
+/* ─── Landing: scroll-triggered animations (IntersectionObserver) ─── */
+.scroll-hidden {
+  opacity: 0;
+  transform: translateY(32px);
+  filter: blur(4px);
+  transition:
+    opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scroll-visible {
   opacity: 1;
   transform: translateY(0);
+  filter: blur(0px);
 }
-.animate-stagger-1 { transition-delay: 100ms; }
-.animate-stagger-2 { transition-delay: 200ms; }
-.animate-stagger-3 { transition-delay: 300ms; }
-.animate-stagger-4 { transition-delay: 400ms; }
+.scroll-delay-1 { transition-delay:  80ms; }
+.scroll-delay-2 { transition-delay: 160ms; }
+.scroll-delay-3 { transition-delay: 240ms; }
+.scroll-delay-4 { transition-delay: 320ms; }
 
 /* View Transitions API — circular reveal do theme toggle */
 ::view-transition-old(root),
