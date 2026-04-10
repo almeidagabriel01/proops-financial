@@ -158,7 +158,7 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
             placeholder="0,00"
             value={amountStr}
             onChange={(e) => setAmountStr(maskCurrency(e.target.value))}
-            className="text-base"
+            className=""
           />
         </div>
         <div>

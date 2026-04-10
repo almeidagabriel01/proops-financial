@@ -75,7 +75,7 @@ export function BudgetForm({ open, onClose, onSubmit, editing }: BudgetFormProps
           placeholder="0,00"
           value={limitStr}
           onChange={(e) => setLimitStr(maskCurrency(e.target.value))}
-          className="text-base"
+          className=""
         />
       </div>
 

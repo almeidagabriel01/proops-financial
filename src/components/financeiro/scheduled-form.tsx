@@ -150,7 +150,7 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
             placeholder="0,00"
             value={amountStr}
             onChange={(e) => setAmountStr(maskCurrency(e.target.value))}
-            className="text-base"
+            className=""
           />
         </div>
         <div>

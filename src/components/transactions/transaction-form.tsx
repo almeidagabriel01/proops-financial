@@ -266,7 +266,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
               setValues((prev) => ({ ...prev, amount: maskCurrency(e.target.value) }));
               if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
             }}
-            className={`text-base ${errors.amount ? 'border-destructive' : ''}`}
+            className={errors.amount ? 'border-destructive' : ''}
           />
           {errors.amount && (
             <p className="mt-1 text-xs text-destructive">{errors.amount}</p>
