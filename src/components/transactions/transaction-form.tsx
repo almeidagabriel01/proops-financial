@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
@@ -191,26 +192,22 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
   const formBody = (
     <form id={FORM_ID} onSubmit={(e) => void handleSubmit(e)} noValidate className="space-y-4">
       {/* Tipo */}
-      <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
+      <div className="flex overflow-hidden rounded-lg border border-border">
         <button
           type="button"
-          onClick={() => setValues((v) => ({ ...v, type: 'debit' }))}
-          className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
-            values.type === 'debit'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground'
+          className={`min-h-[44px] flex-1 text-sm font-medium transition-colors ${
+            values.type === 'debit' ? 'bg-destructive text-destructive-foreground' : 'hover:bg-muted'
           }`}
+          onClick={() => setValues((v) => ({ ...v, type: 'debit', category: 'outros' }))}
         >
           Despesa
         </button>
         <button
           type="button"
-          onClick={() => setValues((v) => ({ ...v, type: 'credit' }))}
-          className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
-            values.type === 'credit'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground'
+          className={`min-h-[44px] flex-1 text-sm font-medium transition-colors ${
+            values.type === 'credit' ? 'bg-green-600 text-white' : 'hover:bg-muted'
           }`}
+          onClick={() => setValues((v) => ({ ...v, type: 'credit', category: 'salario' }))}
         >
           Receita
         </button>
@@ -221,7 +218,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-desc">
           Descrição
         </label>
-        <input
+        <Input
           id="txn-desc"
           type="text"
           placeholder="Ex: Aluguel, Salário, Supermercado..."
@@ -231,9 +228,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             setValues((prev) => ({ ...prev, description: e.target.value }));
             if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
           }}
-          className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors ${
-            errors.description ? 'border-destructive' : 'border-input'
-          }`}
+          className={errors.description ? 'border-destructive' : ''}
         />
         {errors.description && (
           <p className="mt-1 text-xs text-destructive">{errors.description}</p>
@@ -261,7 +256,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
           <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-amount">
             Valor (R$)
           </label>
-          <input
+          <Input
             id="txn-amount"
             type="text"
             inputMode="decimal"
@@ -271,9 +266,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
               setValues((prev) => ({ ...prev, amount: maskCurrency(e.target.value) }));
               if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
             }}
-            className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors ${
-              errors.amount ? 'border-destructive' : 'border-input'
-            }`}
+            className={`text-base ${errors.amount ? 'border-destructive' : ''}`}
           />
           {errors.amount && (
             <p className="mt-1 text-xs text-destructive">{errors.amount}</p>
