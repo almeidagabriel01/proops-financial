@@ -74,16 +74,14 @@ export function InstallmentGroupCard({ group, onDelete, onViewDetails }: Install
         </div>
       </div>
 
-      {nextPending && (
-        <div className="mt-2 flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
-          <span className="text-xs text-muted-foreground">
-            Próxima: parcela {nextPending.installment_number}
-          </span>
-          <span className={`text-xs font-medium ${nextPending.status === 'overdue' ? 'text-destructive' : ''}`}>
-            {formatDate(nextPending.due_date)} · {formatCurrency(nextPending.amount)}
-          </span>
-        </div>
-      )}
+      <div className={`mt-2 flex items-center justify-between rounded-md px-2.5 py-1.5 ${nextPending ? 'bg-muted/40' : 'invisible'}`}>
+        <span className="text-xs text-muted-foreground">
+          {nextPending ? `Próxima: parcela ${nextPending.installment_number}` : '—'}
+        </span>
+        <span className={`text-xs font-medium ${nextPending?.status === 'overdue' ? 'text-destructive' : ''}`}>
+          {nextPending ? `${formatDate(nextPending.due_date)} · ${formatCurrency(nextPending.amount)}` : '—'}
+        </span>
+      </div>
 
       {onViewDetails && (
         <Button
