@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { AnimationObserver } from '@/components/landing/animations';
+import { MobileMenuButton } from '@/components/landing/mobile-nav';
 
 export const metadata: Metadata = {
   title: 'Finansim — Suas finanças, finalmente organizadas',
@@ -31,10 +34,7 @@ export const metadata: Metadata = {
     description:
       'Importe seus extratos, categorize automaticamente com IA e converse com seu assistente financeiro pessoal.',
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: { index: true, follow: true },
 };
 
 export default async function HomePage() {
@@ -43,285 +43,357 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    redirect('/dashboard');
-  }
+  if (user) redirect('/dashboard');
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <Nav />
+    <div className="min-h-dvh bg-white text-zinc-950 dark:bg-zinc-950 dark:text-white">
+      <AnimationObserver />
+      <LandingNav />
       <main>
         <HeroSection />
+        <SocialProofBar />
         <HowItWorksSection />
         <FeaturesSection />
         <PricingSection />
         <TestimonialsSection />
+        <CtaFinalSection />
       </main>
-      <Footer />
+      <LandingFooter />
     </div>
   );
 }
 
-/* ─────────────────────────── NAV ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   NAV
+══════════════════════════════════════════════════════════════ */
 
-function Nav() {
+function LandingNav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+    <header className="sticky top-0 z-50 border-b border-zinc-200/60 bg-white/80 backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/80">
+      <div className="relative mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-sm font-bold text-white transition-opacity group-hover:opacity-80 dark:bg-white dark:text-zinc-950">
             F
           </div>
-          <span className="font-semibold tracking-tight text-foreground">Finansim</span>
-        </div>
-        <div className="flex items-center gap-3">
+          <span className="text-base font-bold tracking-tight">Finansim</span>
+        </Link>
+
+        {/* Desktop nav */}
+        <div className="hidden items-center gap-2 sm:flex">
+          <ThemeToggle />
           <Link
             href="/login"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex h-9 items-center rounded-lg px-4 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
           >
             Entrar
           </Link>
           <Link
             href="/signup"
-            className="inline-flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
+            className="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:scale-[1.02] dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
           >
             Começar grátis
           </Link>
+        </div>
+
+        {/* Mobile: theme toggle + hamburger */}
+        <div className="flex items-center gap-1 sm:hidden">
+          <ThemeToggle />
+          <MobileMenuButton />
         </div>
       </div>
     </header>
   );
 }
 
-/* ─────────────────────────── HERO ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   HERO
+══════════════════════════════════════════════════════════════ */
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden px-4 pb-16 pt-16 sm:pt-24">
-      {/* Background gradient */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.35 0.08 240 / 8%) 0%, transparent 70%)',
-        }}
-      />
-
+    <section className="overflow-hidden px-4 pb-0 pt-16 sm:pt-24 lg:pt-32">
       <div className="mx-auto max-w-5xl">
-        {/* Badge */}
-        <div className="mb-6 flex justify-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent-foreground">
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 rounded-full bg-accent"
-            />
-            Trial grátis por 7 dias — sem cartão de crédito
-          </span>
+        {/* Headline */}
+        <div className="mb-8 text-center animate-target animate-stagger-1" data-animate>
+          <h1 className="text-5xl font-bold leading-none tracking-tighter text-zinc-950 dark:text-white md:text-7xl lg:text-8xl">
+            Suas finanças,
+            <br />
+            finalmente
+            <br />
+            <span className="text-zinc-400 dark:text-zinc-500">organizadas.</span>
+          </h1>
         </div>
 
-        {/* Headline */}
-        <div className="mx-auto mb-8 max-w-2xl text-center">
-          <h1 className="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Suas finanças,{' '}
-            <span className="text-primary">finalmente organizadas</span>
-          </h1>
-          <p className="text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Importe seus extratos, categorize automaticamente com IA e converse com
-            seu assistente financeiro pessoal em português.
+        {/* Subheadline */}
+        <div className="mb-10 flex justify-center animate-target animate-stagger-2" data-animate>
+          <p className="max-w-md text-center text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Importe extratos, deixe a IA categorizar automaticamente e converse com seu assistente
+            financeiro pessoal em português.
           </p>
         </div>
 
         {/* CTAs */}
-        <div className="mb-12 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <div
+          className="mb-16 flex flex-col items-center justify-center gap-3 sm:flex-row animate-target"
+          data-animate
+        >
           <Link
             href="/signup"
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/80 sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:scale-[1.02] hover:shadow-lg dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 sm:w-auto"
           >
-            Começar grátis por 7 dias
+            Começar grátis
           </Link>
           <a
             href="#como-funciona"
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-border bg-background px-8 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-zinc-200 bg-transparent px-8 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-900 sm:w-auto"
           >
             Ver como funciona
           </a>
         </div>
 
         {/* Dashboard Mockup */}
-        <div className="relative mx-auto max-w-3xl">
-          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-elevated">
-            {/* Mockup top bar */}
-            <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-3">
-              <div className="flex gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-border" />
-                <div className="h-2.5 w-2.5 rounded-full bg-border" />
-                <div className="h-2.5 w-2.5 rounded-full bg-border" />
+        <div className="relative mx-auto max-w-3xl animate-target animate-stagger-3" data-animate>
+          {/* Fade-out bottom */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24 bg-gradient-to-t from-white dark:from-zinc-950"
+          />
+
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            {/* Window chrome */}
+            <div className="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+              <div className="flex gap-1.5" aria-hidden="true">
+                <div className="h-2.5 w-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <div className="h-2.5 w-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <div className="h-2.5 w-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
               </div>
-              <div className="ml-2 h-4 w-32 rounded bg-border/60 text-center text-xs leading-4 text-muted-foreground">
-                finansim.app/dashboard
+              <div className="mx-auto flex h-5 w-48 items-center justify-center rounded-md bg-zinc-200/60 dark:bg-zinc-800">
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  finansim.app/dashboard
+                </span>
               </div>
             </div>
 
-            {/* Mockup dashboard content */}
-            <div className="p-4 sm:p-6">
-              {/* Stats row */}
+            <div className="p-5 sm:p-6">
+              {/* Period badge */}
+              <div className="mb-5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  Abril 2026
+                </p>
+                <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                  Atualizado agora
+                </span>
+              </div>
+
+              {/* Stats */}
               <div className="mb-5 grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Receitas', value: 'R$ 5.200', color: 'text-accent' },
-                  { label: 'Despesas', value: 'R$ 3.840', color: 'text-destructive' },
-                  { label: 'Saldo', value: 'R$ 1.360', color: 'text-foreground' },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-xl border border-border bg-background p-3">
-                    <p className="mb-1 text-xs text-muted-foreground">{stat.label}</p>
-                    <p className={`text-sm font-bold sm:text-base ${stat.color}`}>{stat.value}</p>
+                  { label: 'Receitas', value: 'R$ 5.200', sub: '+12% vs março', pos: true },
+                  { label: 'Despesas', value: 'R$ 3.840', sub: '-5% vs março', pos: false },
+                  { label: 'Saldo', value: 'R$ 1.360', sub: 'Este mês', pos: true },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-700/50 dark:bg-zinc-800/50"
+                  >
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                      {s.label}
+                    </p>
+                    <p className="text-sm font-bold text-zinc-950 dark:text-white sm:text-base">
+                      {s.value}
+                    </p>
+                    <p
+                      className={`mt-0.5 text-[10px] font-medium ${
+                        s.pos
+                          ? 'text-emerald-600 dark:text-emerald-500'
+                          : 'text-rose-500 dark:text-rose-400'
+                      }`}
+                    >
+                      {s.sub}
+                    </p>
                   </div>
                 ))}
               </div>
 
-              {/* Chart area */}
-              <div className="mb-5 rounded-xl border border-border bg-background p-4">
-                <p className="mb-3 text-xs font-medium text-muted-foreground">Gastos por categoria</p>
-                <div className="flex items-end gap-2 h-20">
+              {/* Chart */}
+              <div className="mb-5 rounded-xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-700/50 dark:bg-zinc-800/50">
+                <p className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  Gastos por categoria
+                </p>
+                <div className="flex h-16 items-end gap-1.5">
                   {[
-                    { label: 'Alim.', height: '85%', color: 'bg-chart-1' },
-                    { label: 'Trans.', height: '50%', color: 'bg-chart-2' },
-                    { label: 'Saúde', height: '35%', color: 'bg-chart-3' },
-                    { label: 'Lazer', height: '60%', color: 'bg-chart-4' },
-                    { label: 'Comp.', height: '45%', color: 'bg-chart-5' },
-                    { label: 'Outros', height: '25%', color: 'bg-muted-foreground' },
+                    { w: 'flex-[2]', h: '85%', label: 'Alimentação' },
+                    { w: 'flex-[1.4]', h: '55%', label: 'Transporte' },
+                    { w: 'flex-[1.2]', h: '40%', label: 'Saúde' },
+                    { w: 'flex-[1.6]', h: '65%', label: 'Lazer' },
+                    { w: 'flex-[1.1]', h: '35%', label: 'Assinat.' },
+                    { w: 'flex-[0.8]', h: '22%', label: 'Outros' },
                   ].map((bar) => (
-                    <div key={bar.label} className="flex flex-1 flex-col items-center gap-1">
+                    <div key={bar.label} className={`${bar.w} flex flex-col items-center gap-1`}>
                       <div
-                        className={`w-full rounded-sm ${bar.color} opacity-80`}
-                        style={{ height: bar.height }}
+                        className="w-full rounded-sm bg-zinc-800 dark:bg-zinc-300"
+                        style={{ height: bar.h }}
+                        aria-label={bar.label}
                       />
-                      <span className="text-[9px] text-muted-foreground">{bar.label}</span>
+                      <span className="text-[8px] text-zinc-400 dark:text-zinc-500">
+                        {bar.label}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Transactions list */}
+              {/* Transactions */}
               <div className="space-y-2">
                 {[
-                  { icon: '🛒', desc: 'iFood', cat: 'Delivery', value: '-R$ 54,90', color: 'text-destructive' },
-                  { icon: '🚗', desc: 'Uber', cat: 'Transporte', value: '-R$ 23,50', color: 'text-destructive' },
-                  { icon: '💊', desc: 'Droga Raia', cat: 'Saúde', value: '-R$ 87,20', color: 'text-destructive' },
+                  { icon: '🛒', name: 'iFood', cat: 'Delivery', val: '−R$ 54,90' },
+                  { icon: '🚗', name: 'Uber', cat: 'Transporte', val: '−R$ 23,50' },
+                  { icon: '💊', name: 'Droga Raia', cat: 'Saúde', val: '−R$ 87,20' },
                 ].map((tx) => (
                   <div
-                    key={tx.desc}
-                    className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2"
+                    key={tx.name}
+                    className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5 dark:bg-zinc-800/50"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base" aria-hidden="true">{tx.icon}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-base" aria-hidden="true">
+                        {tx.icon}
+                      </span>
                       <div>
-                        <p className="text-xs font-medium text-foreground">{tx.desc}</p>
-                        <p className="text-[10px] text-muted-foreground">{tx.cat}</p>
+                        <p className="text-xs font-semibold text-zinc-900 dark:text-white">
+                          {tx.name}
+                        </p>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{tx.cat}</p>
                       </div>
                     </div>
-                    <span className={`text-xs font-semibold ${tx.color}`}>{tx.value}</span>
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      {tx.val}
+                    </span>
                   </div>
                 ))}
               </div>
-
-              {/* AI badge */}
-              <div className="mt-4 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
-                <span aria-hidden="true" className="text-sm">✨</span>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-accent-foreground">IA:</span> Você gastou 22% mais com delivery este mês. Quer ver uma análise?
-                </p>
-              </div>
             </div>
           </div>
-
-          {/* Decorative glow */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl opacity-20"
-            style={{
-              background:
-                'radial-gradient(ellipse at center, oklch(0.35 0.08 240 / 30%) 0%, transparent 70%)',
-            }}
-          />
         </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────── COMO FUNCIONA ─────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   SOCIAL PROOF BAR
+══════════════════════════════════════════════════════════════ */
+
+function SocialProofBar() {
+  return (
+    <section className="mt-0 px-4 py-12" aria-label="Métricas">
+      <div className="mx-auto max-w-5xl">
+        <div
+          className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-200 dark:border-zinc-800 dark:bg-zinc-800 sm:grid-cols-3"
+          data-animate
+        >
+          {[
+            {
+              counter: '10000',
+              prefix: '',
+              suffix: '+',
+              label: 'transações categorizadas',
+            },
+            {
+              counter: '98',
+              prefix: '',
+              suffix: '%',
+              label: 'de acurácia na categorização',
+            },
+            {
+              counter: '2',
+              prefix: '< ',
+              suffix: ' min',
+              label: 'para ver seu primeiro dashboard',
+            },
+          ].map((m, i) => (
+            <div
+              key={m.label}
+              className={`animate-target flex flex-col items-center justify-center gap-1 bg-zinc-50 px-6 py-8 text-center dark:bg-zinc-900 ${
+                i === 0 ? '' : ''
+              }`}
+              data-animate
+            >
+              <p className="text-3xl font-bold tracking-tight text-zinc-950 dark:text-white sm:text-4xl">
+                {m.prefix}
+                <span data-counter={m.counter}>0</span>
+                {m.suffix}
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{m.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   COMO FUNCIONA
+══════════════════════════════════════════════════════════════ */
 
 function HowItWorksSection() {
   const steps = [
     {
-      number: '01',
-      icon: (
-        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-        </svg>
-      ),
+      n: '01',
       title: 'Importe seu extrato',
-      description:
-        'Exporte o extrato do seu banco em OFX ou CSV e faça upload no Finansim. Suporte para Nubank, Itaú, Bradesco e qualquer banco que gere OFX.',
+      desc: 'Exporte o arquivo OFX ou CSV do seu banco — Nubank, Itaú, Bradesco ou qualquer banco. Upload em segundos.',
     },
     {
-      number: '02',
-      icon: (
-        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-        </svg>
-      ),
-      title: 'IA categoriza automaticamente',
-      description:
-        'Nossa IA reconhece o contexto brasileiro: iFood vai para Delivery, Uber vai para Transporte, Droga Raia vai para Saúde. Zero digitação.',
+      n: '02',
+      title: 'IA categoriza tudo',
+      desc: 'Cada transação é categorizada automaticamente com contexto brasileiro. iFood = Delivery. Uber = Transporte. Sem esforço.',
     },
     {
-      number: '03',
-      icon: (
-        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-        </svg>
-      ),
-      title: 'Converse com seu assistente',
-      description:
-        'Pergunte em português natural: "Quanto gastei com alimentação em março?" ou "Qual meu maior gasto?". A IA responde com seus dados reais.',
+      n: '03',
+      title: 'Converse e entenda',
+      desc: 'Pergunte em português natural sobre seus gastos reais. "Quanto gastei com alimentação?" — resposta instantânea.',
     },
   ];
 
   return (
-    <section id="como-funciona" className="px-4 py-16 sm:py-20">
+    <section id="como-funciona" className="px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">
+        <div className="mb-16 text-center animate-target" data-animate>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Como funciona
           </p>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Três passos para o controle total
+          <h2 className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
+            Simples assim.
           </h2>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-3">
-          {steps.map((step, idx) => (
-            <div key={step.number} className="relative flex flex-col gap-4">
-              {/* Connector line (not on last item) */}
-              {idx < steps.length - 1 && (
-                <div
-                  aria-hidden="true"
-                  className="absolute left-[calc(50%+2rem)] top-7 hidden h-px w-[calc(100%-4rem)] border-t border-dashed border-border sm:block"
-                />
-              )}
+        <div className="relative grid gap-8 sm:grid-cols-3 sm:gap-6">
+          {/* Connector lines desktop */}
+          <div
+            aria-hidden="true"
+            className="absolute left-[calc(33.33%+1rem)] right-[calc(33.33%+1rem)] top-8 hidden border-t border-dashed border-zinc-200 dark:border-zinc-800 sm:block"
+          />
 
-              <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-card">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  {step.icon}
+          {steps.map((s, i) => (
+            <div
+              key={s.n}
+              data-animate
+              className={`animate-target animate-stagger-${i + 1} relative flex flex-col gap-4`}
+            >
+              <div className="flex items-start gap-4 sm:flex-col sm:gap-5">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 sm:mx-auto">
+                  <span className="text-xs font-bold tracking-widest text-zinc-400 dark:text-zinc-600">
+                    {s.n}
+                  </span>
                 </div>
-                <div>
-                  <p className="mb-1 text-xs font-bold tracking-widest text-muted-foreground">
-                    {step.number}
+                <div className="sm:text-center">
+                  <h3 className="mb-2 text-base font-bold tracking-tight text-zinc-950 dark:text-white">
+                    {s.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    {s.desc}
                   </p>
-                  <h3 className="mb-2 text-base font-semibold text-foreground">{step.title}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">{step.description}</p>
                 </div>
               </div>
             </div>
@@ -332,76 +404,121 @@ function HowItWorksSection() {
   );
 }
 
-/* ─────────────────────────── FEATURES ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   FEATURES
+══════════════════════════════════════════════════════════════ */
 
 function FeaturesSection() {
   const features = [
     {
       icon: (
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+          />
         </svg>
       ),
       title: 'Categorização automática com IA',
-      description:
-        'Cada transação é categorizada automaticamente em 14 categorias com contexto brasileiro. Sem digitar, sem selecionar, sem esforço.',
+      desc: 'Cada transação classificada em 14 categorias com contexto brasileiro. Aprende com suas correções para ficar cada vez mais preciso.',
     },
     {
       icon: (
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
+          />
         </svg>
       ),
       title: 'Chat financeiro inteligente',
-      description:
-        'Pergunte em português sobre seus gastos reais. "Quanto gastei com Uber em fevereiro?" — resposta instantânea com seus dados.',
+      desc: 'Pergunte sobre seus gastos em português natural. "Quanto gastei com Uber em fevereiro?" — resposta baseada nos seus dados reais.',
     },
     {
       icon: (
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
+          />
         </svg>
       ),
       title: 'Dashboard visual completo',
-      description:
-        'Visão consolidada dos seus gastos: total de receitas, despesas, saldo e distribuição por categoria com gráficos limpos e intuitivos.',
+      desc: 'Visão consolidada de receitas, despesas e saldo. Gráficos por categoria e comparativos mensais — para todos os planos.',
     },
     {
       icon: (
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+          />
         </svg>
       ),
-      title: 'Segurança e privacidade LGPD',
-      description:
-        'Seus dados ficam isolados por RLS no banco. Conformidade com LGPD, direito de exclusão completo e consentimento explícito.',
+      title: 'Privacidade e segurança LGPD',
+      desc: 'Dados isolados por RLS. Conformidade com LGPD, consentimento explícito e direito de exclusão completo implementados desde o dia 1.',
     },
   ];
 
   return (
-    <section className="bg-muted/30 px-4 py-16 sm:py-20">
+    <section className="bg-zinc-50 px-4 py-20 dark:bg-zinc-900/40 sm:py-28">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">
+        <div className="mb-16 text-center animate-target" data-animate>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Funcionalidades
           </p>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Tudo que você precisa, sem complicação
+          <h2 className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
+            Tudo que você precisa.
           </h2>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {features.map((feature) => (
+          {features.map((f, i) => (
             <div
-              key={feature.title}
-              className="flex gap-4 rounded-2xl border border-border bg-card p-5 shadow-card"
+              key={f.title}
+              data-animate
+              className={`animate-target animate-stagger-${i + 1} group flex gap-4 rounded-2xl border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700`}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                {feature.icon}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                {f.icon}
               </div>
               <div>
-                <h3 className="mb-1 text-sm font-semibold text-foreground">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+                <h3 className="mb-1.5 text-sm font-bold text-zinc-950 dark:text-white">
+                  {f.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{f.desc}</p>
               </div>
             </div>
           ))}
@@ -411,14 +528,16 @@ function FeaturesSection() {
   );
 }
 
-/* ─────────────────────────── PRICING ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   PRICING
+══════════════════════════════════════════════════════════════ */
 
 const BASIC_FEATURES = [
   '3 contas bancárias',
   'Histórico ilimitado de transações',
   'Categorização automática com IA',
   'Dashboard completo + comparativos mensais',
-  'Chat IA com Haiku — 50 perguntas/mês',
+  'Chat IA (Haiku) — 50 perguntas/mês',
   'Importação OFX e CSV',
   'Suporte por email',
 ];
@@ -428,178 +547,193 @@ const PRO_FEATURES = [
   'Histórico ilimitado de transações',
   'Categorização automática com IA',
   'Dashboard completo + comparativos mensais',
-  'Chat IA com Sonnet — 200 perguntas/mês',
-  'Ações por IA: criar metas, orçamentos, transações',
-  'Entrada por áudio (transcrição Whisper)',
+  'Chat IA avançado (Sonnet) — 200 perguntas/mês',
+  'Ações por IA: metas, orçamentos, transações',
+  'Entrada por áudio (transcrição automática)',
   'Importação OFX e CSV',
   'Suporte prioritário',
 ];
 
 function PricingSection() {
   return (
-    <section id="precos" className="px-4 py-16 sm:py-20">
+    <section id="precos" className="px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">
-            Planos e preços
+        <div className="mb-16 text-center animate-target" data-animate>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
+            Preços
           </p>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Comece grátis, evolua quando quiser
+          <h2 className="mb-3 text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
+            Preço justo, sem surpresas.
           </h2>
-          <p className="mt-3 text-muted-foreground">
-            7 dias de trial Pro gratuito em qualquer plano — sem cartão de crédito
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400">7 dias grátis, cancele quando quiser.</p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 sm:items-start animate-target" data-animate>
           {/* Basic */}
-          <div className="flex flex-col rounded-2xl border border-border bg-card p-6 shadow-card">
-            <div className="mb-6">
-              <p className="mb-1 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                Basic
-              </p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-foreground">R$ 19</span>
-                <span className="text-xl font-bold text-foreground">,90</span>
-                <span className="text-sm text-muted-foreground">/mês</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Para quem quer controle financeiro sem complicação.
-              </p>
+          <div className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-zinc-400 dark:text-zinc-500">
+              Basic
+            </p>
+            <div className="mb-1 flex items-baseline gap-0.5">
+              <span className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white">
+                R$ 19
+              </span>
+              <span className="text-xl font-bold text-zinc-950 dark:text-white">,90</span>
+              <span className="ml-1 text-sm text-zinc-400 dark:text-zinc-500">/mês</span>
             </div>
+            <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+              Controle financeiro completo sem complicação.
+            </p>
 
             <Link
               href="/signup"
-              className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-300 bg-white text-sm font-semibold text-zinc-950 transition-all hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
             >
               Começar trial gratuito
             </Link>
 
             <ul className="flex flex-col gap-3">
-              {BASIC_FEATURES.map((feat) => (
-                <li key={feat} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <CheckIcon />
-                  <span>{feat}</span>
+              {BASIC_FEATURES.map((f) => (
+                <li
+                  key={f}
+                  className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-400"
+                >
+                  <PricingCheck />
+                  {f}
                 </li>
               ))}
             </ul>
           </div>
 
           {/* Pro */}
-          <div className="relative flex flex-col rounded-2xl border-2 border-primary bg-card p-6 shadow-elevated">
+          <div className="relative flex flex-col rounded-2xl bg-zinc-950 p-6 dark:bg-zinc-100">
             {/* Popular badge */}
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span className="inline-flex items-center rounded-full bg-primary px-3 py-0.5 text-xs font-semibold text-primary-foreground">
+            <div className="absolute -top-3 left-6">
+              <span className="inline-flex items-center rounded-full bg-zinc-950 px-3 py-0.5 text-xs font-bold text-white dark:bg-zinc-100 dark:text-zinc-950">
                 Mais popular
               </span>
             </div>
 
-            <div className="mb-6">
-              <p className="mb-1 text-sm font-semibold uppercase tracking-widest text-primary">
-                Pro
-              </p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-foreground">R$ 49</span>
-                <span className="text-xl font-bold text-foreground">,90</span>
-                <span className="text-sm text-muted-foreground">/mês</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Para quem quer o assistente financeiro completo com IA avançada.
-              </p>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">
+              Pro
+            </p>
+            <div className="mb-1 flex items-baseline gap-0.5">
+              <span className="text-4xl font-bold tracking-tighter text-white dark:text-zinc-950">
+                R$ 49
+              </span>
+              <span className="text-xl font-bold text-white dark:text-zinc-950">,90</span>
+              <span className="ml-1 text-sm text-zinc-500 dark:text-zinc-500">/mês</span>
             </div>
+            <p className="mb-6 text-sm text-zinc-400 dark:text-zinc-600">
+              O assistente financeiro completo com IA avançada.
+            </p>
 
             <Link
               href="/signup"
-              className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/80"
+              className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950 transition-all hover:bg-zinc-100 hover:scale-[1.01] hover:shadow-lg dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
             >
               Começar trial gratuito
             </Link>
 
             <ul className="flex flex-col gap-3">
-              {PRO_FEATURES.map((feat) => (
-                <li key={feat} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <CheckIcon className="text-primary" />
-                  <span>{feat}</span>
+              {PRO_FEATURES.map((f) => (
+                <li
+                  key={f}
+                  className="flex items-start gap-2.5 text-sm text-zinc-400 dark:text-zinc-600"
+                >
+                  <PricingCheck inverted />
+                  {f}
                 </li>
               ))}
             </ul>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Pagamento via Pix, boleto ou cartão de crédito. Cancele quando quiser.
+        <p className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
+          Pagamento via Pix, boleto ou cartão. Sem fidelidade.
         </p>
       </div>
     </section>
   );
 }
 
-function CheckIcon({ className = '' }: { className?: string }) {
+function PricingCheck({ inverted = false }: { inverted?: boolean }) {
   return (
     <svg
-      className={`mt-0.5 h-4 w-4 shrink-0 ${className || 'text-accent'}`}
+      className={`mt-0.5 h-4 w-4 shrink-0 ${inverted ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-400 dark:text-zinc-500'}`}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.5}
+        d="M4.5 12.75l6 6 9-13.5"
+      />
     </svg>
   );
 }
 
-/* ─────────────────────────── TESTIMONIALS ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   TESTIMONIALS
+══════════════════════════════════════════════════════════════ */
 
 function TestimonialsSection() {
-  const testimonials = [
+  const items = [
     {
-      initials: 'AC',
-      name: 'Ana C.',
-      role: 'Professora',
       quote:
-        'Finalmente entendo para onde vai meu dinheiro todo mês. A IA categoriza tudo certinho, não preciso fazer nada.',
+        'Finalmente entendo para onde vai meu dinheiro todo mês. A IA categoriza tudo certinho — não preciso fazer nada.',
+      name: 'Ana C.',
+      role: 'Professora · São Paulo, SP',
+      initials: 'AC',
     },
     {
-      initials: 'RM',
-      name: 'Rafael M.',
-      role: 'Desenvolvedor',
       quote:
         'O chat financeiro é incrível. Perguntei quanto gastei com iFood no último trimestre e recebi a resposta em segundos.',
+      name: 'Rafael M.',
+      role: 'Engenheiro de software · Curitiba, PR',
+      initials: 'RM',
     },
     {
-      initials: 'JP',
-      name: 'Juliana P.',
-      role: 'Autônoma',
       quote:
-        'Usei por 3 dias e já descobri que estava gastando R$ 800/mês com assinaturas que não sabia que tinha.',
+        'Em 3 dias descobri que gastava R$ 800/mês com assinaturas que havia esquecido. Cancelei tudo na hora.',
+      name: 'Juliana P.',
+      role: 'Designer freelance · Florianópolis, SC',
+      initials: 'JP',
     },
   ];
 
   return (
-    <section className="bg-muted/30 px-4 py-16 sm:py-20">
+    <section className="bg-zinc-50 px-4 py-20 dark:bg-zinc-900/40 sm:py-28">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">
+        <div className="mb-16 text-center animate-target" data-animate>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
             Depoimentos
           </p>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            O que dizem os usuários
+          <h2 className="text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
+            O que dizem os usuários.
           </h2>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          {testimonials.map((t) => (
-            <div key={t.name} className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-              <p className="text-sm leading-relaxed text-muted-foreground">
+          {items.map((t, i) => (
+            <div
+              key={t.name}
+              data-animate
+              className={`animate-target animate-stagger-${i + 1} flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900`}
+            >
+              <p className="mb-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                 &ldquo;{t.quote}&rdquo;
               </p>
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                   {t.initials}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
+                  <p className="text-sm font-semibold text-zinc-950 dark:text-white">{t.name}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">{t.role}</p>
                 </div>
               </div>
             </div>
@@ -610,33 +744,60 @@ function TestimonialsSection() {
   );
 }
 
-/* ─────────────────────────── FOOTER ─────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   CTA FINAL
+══════════════════════════════════════════════════════════════ */
 
-function Footer() {
+function CtaFinalSection() {
   return (
-    <footer className="border-t border-border px-4 py-8">
+    <section className="px-4 py-20 sm:py-28">
+      <div className="mx-auto max-w-2xl text-center animate-target" data-animate>
+        <h2 className="mb-3 text-5xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-6xl">
+          Comece hoje.
+        </h2>
+        <p className="mb-8 text-lg text-zinc-500 dark:text-zinc-400">
+          7 dias grátis. Sem cartão de crédito.
+        </p>
+        <Link
+          href="/signup"
+          className="inline-flex h-13 items-center justify-center rounded-xl bg-zinc-950 px-10 text-base font-bold text-white transition-all hover:bg-zinc-800 hover:scale-[1.02] hover:shadow-xl dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+        >
+          Criar conta grátis
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════════════════════════ */
+
+function LandingFooter() {
+  return (
+    <footer className="border-t border-zinc-200 px-4 py-8 dark:border-zinc-800">
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-950 text-xs font-bold text-white dark:bg-white dark:text-zinc-950">
             F
           </div>
-          <span className="text-sm font-medium text-foreground">Finansim</span>
-          <span className="text-sm text-muted-foreground">© 2026</span>
+          <span className="text-sm font-semibold text-zinc-950 dark:text-white">Finansim</span>
+          <span className="text-sm text-zinc-400 dark:text-zinc-600">© 2026</span>
         </div>
 
         <nav aria-label="Links do rodapé">
-          <ul className="flex items-center gap-4">
+          <ul className="flex items-center gap-5">
             {[
               { href: '/privacy', label: 'Privacidade' },
               { href: '/terms', label: 'Termos' },
               { href: '/login', label: 'Entrar' },
-            ].map((link) => (
-              <li key={link.href}>
+            ].map((l) => (
+              <li key={l.href}>
                 <Link
-                  href={link.href}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  href={l.href}
+                  className="text-sm text-zinc-400 transition-colors hover:text-zinc-950 dark:text-zinc-600 dark:hover:text-white"
                 >
-                  {link.label}
+                  {l.label}
                 </Link>
               </li>
             ))}
