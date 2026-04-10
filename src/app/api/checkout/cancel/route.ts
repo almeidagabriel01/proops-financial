@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { cancelSubscription } from '@/lib/billing/asaas';
+import { getStripe } from '@/lib/billing/stripe';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -21,20 +21,21 @@ export async function POST(req: Request) {
   const { data: sub } = await serviceSupabase
     .from('subscriptions')
     .select('user_id')
-    .eq('asaas_subscription_id', subscriptionId)
+    .eq('stripe_subscription_id', subscriptionId)
     .single();
 
   if (!sub || sub.user_id !== user.id) {
     return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
   }
 
-  await cancelSubscription(subscriptionId);
+  // Cancel at period end — user keeps access until billing cycle ends
+  await getStripe().subscriptions.update(subscriptionId, { cancel_at_period_end: true });
 
-  // Mark as canceled locally — webhook will also fire, but this ensures immediate UI feedback
+  // Mark locally — webhook will also fire but this ensures immediate UI feedback
   await serviceSupabase
     .from('subscriptions')
-    .update({ status: 'canceled', updated_at: new Date().toISOString() })
-    .eq('asaas_subscription_id', subscriptionId);
+    .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+    .eq('stripe_subscription_id', subscriptionId);
 
   return NextResponse.json({ ok: true });
 }

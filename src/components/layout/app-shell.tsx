@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { FloatingChatButton } from '@/components/layout/floating-chat-button';
 import { Dock } from '@/components/layout/dock';
 import { UserMenu } from '@/components/layout/user-menu';
+import { CookieConsent } from '@/components/layout/cookie-consent';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -80,6 +81,9 @@ export function AppShell({ children, showOnboardingBanner, userName, userEmail, 
 
       {/* Chat FAB */}
       <FloatingChatButton />
+
+      {/* Cookie consent banner (LGPD) */}
+      <CookieConsent />
 
       <Toaster position="bottom-center" richColors />
     </div>

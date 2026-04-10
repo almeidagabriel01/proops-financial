@@ -87,8 +87,11 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      {/* Área principal do chat */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Área principal do chat.
+          pb-[calc(4rem+env(safe-area-inset-bottom,0px))]: empurra o ChatInput
+          acima do BottomNav fixo no mobile (64px + safe area iPhone).
+          lg:pb-0: no desktop não há BottomNav. */}
+      <div className="flex flex-1 flex-col overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
           <div>

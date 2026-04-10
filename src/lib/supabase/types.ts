@@ -12,7 +12,7 @@ export type Database = {
           display_name: string | null;
           plan: 'basic' | 'pro';
           trial_ends_at: string | null;
-          asaas_customer_id: string | null;
+          stripe_customer_id: string | null;
           audio_enabled: boolean;
           ai_queries_this_month: number;
           ai_queries_reset_at: string;
@@ -25,7 +25,7 @@ export type Database = {
           display_name?: string | null;
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
-          asaas_customer_id?: string | null;
+          stripe_customer_id?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -38,7 +38,7 @@ export type Database = {
           display_name?: string | null;
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
-          asaas_customer_id?: string | null;
+          stripe_customer_id?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -650,8 +650,8 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
-          asaas_subscription_id: string | null;
-          billing_cycle: 'monthly' | 'yearly';
+          stripe_subscription_id: string | null;
+          billing_cycle: 'monthly' | 'annual';
           status: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start: string | null;
           current_period_end: string | null;
@@ -662,8 +662,8 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
-          asaas_subscription_id?: string | null;
-          billing_cycle: 'monthly' | 'yearly';
+          stripe_subscription_id?: string | null;
+          billing_cycle: 'monthly' | 'annual';
           status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
@@ -674,7 +674,7 @@ export type Database = {
         Update: {
           id?: string;
           user_id?: string;
-          asaas_subscription_id?: string | null;
+          stripe_subscription_id?: string | null;
           billing_cycle?: 'monthly' | 'yearly';
           status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;

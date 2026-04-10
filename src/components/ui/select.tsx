@@ -42,19 +42,17 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         // Base layout
-        "flex w-fit items-center justify-between gap-2 rounded-xl border border-input",
+        "flex w-full items-center justify-between gap-2 rounded-xl border border-input",
         "bg-background px-3 text-sm font-medium whitespace-nowrap",
         "transition-colors outline-none select-none",
         // Heights
-        "data-[size=default]:h-9 data-[size=sm]:h-8",
+        "data-[size=default]:h-10 data-[size=sm]:h-8",
         // States
         "hover:border-ring/50",
         "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-placeholder:text-muted-foreground data-placeholder:font-normal",
         "aria-invalid:border-destructive",
-        // Dark mode
-        "dark:bg-input/20 dark:hover:bg-input/30",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center",
         className
@@ -79,7 +77,7 @@ function SelectContent({
   align = "center",
   alignOffset = 0,
   alignItemWithTrigger = false,
-  collisionAvoidance = { side: 'none', fallbackAxisSide: 'none' },
+  collisionAvoidance,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
@@ -143,7 +141,7 @@ function SelectItem({
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">
+      <SelectPrimitive.ItemText className="flex flex-1 min-w-0 gap-2 truncate">
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator

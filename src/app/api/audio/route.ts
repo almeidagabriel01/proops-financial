@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 
-const ACCEPTED_FORMATS = ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/x-m4a', 'audio/mpeg'];
+// Base MIME types accepted by Groq Whisper (codec variants and empty string are also allowed)
+const ACCEPTED_BASE_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/mpeg',
+  'audio/mp3',
+  'video/webm', // some browsers label WebM recordings as video/webm
+]);
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB (Whisper API limit)
 
 export async function POST(req: Request) {
@@ -29,15 +40,18 @@ export async function POST(req: Request) {
   }
 
   const tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
-  const canUseAudio = (tier === 'pro') && profile.audio_enabled;
+  // Double-check: use plan/trial as source of truth; audio_enabled is a cached hint
+  const inTrial = profile.trial_ends_at
+    ? new Date(profile.trial_ends_at) > new Date()
+    : false;
+  const canUseAudio = (profile.plan === 'pro' || inTrial) && tier === 'pro';
 
   if (!canUseAudio) {
     return NextResponse.json({ error: 'audio_pro_only' }, { status: 403 });
   }
 
-  // Stub mode — OPENAI_API_KEY not configured
-  if (!process.env.OPENAI_API_KEY) {
-    console.log('[audio] stub mode — OPENAI_API_KEY not set');
+  if (!process.env.GROQ_API_KEY) {
+    console.log('[audio] stub mode — GROQ_API_KEY not set');
     return NextResponse.json({
       transcript: '[Transcrição de demonstração] Quanto gastei esse mês?',
     });
@@ -57,24 +71,27 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!ACCEPTED_FORMATS.includes(file.type)) {
+  // Normalize: strip codec params (e.g. "audio/webm;codecs=opus" → "audio/webm")
+  const baseType = file.type.split(';')[0].trim();
+  if (baseType && !ACCEPTED_BASE_TYPES.has(baseType)) {
     return NextResponse.json(
-      { error: 'Formato não suportado. Use webm, mp4, wav ou m4a' },
+      { error: 'Formato não suportado. Use webm, ogg, mp4, wav ou m4a' },
       { status: 400 },
     );
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   try {
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await groq.audio.transcriptions.create({
       file,
-      model: 'whisper-1',
+      model: 'whisper-large-v3-turbo',
       language: 'pt',
+      response_format: 'json',
     });
     return NextResponse.json({ transcript: transcription.text });
   } catch (err) {
-    console.error('[audio] Whisper error:', err);
+    console.error('[audio] Groq Whisper error:', err);
     Sentry.captureException(err, {
       extra: { userId: user.id, operation: 'audio_transcription' },
     });

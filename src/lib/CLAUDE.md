@@ -74,7 +74,7 @@ interface ParsedTransaction {
 ```
 1. Dicionário do usuário (category_dictionary)  ← mais alta prioridade
 2. Cache global (category_cache)
-3. Claude Haiku 4.5 via API                     ← último recurso
+3. Gemini 2.0 Flash via API                     ← último recurso (fallback: keyword rules)
 ```
 
 ### categorizer.ts — Batch categorization
@@ -84,8 +84,8 @@ interface ParsedTransaction {
 - Salvar resultado no `category_cache` para reutilização cross-user
 
 ### chat.ts — Conversational AI
-- **Basic:** Claude Haiku 4.5 (`claude-haiku-4-5-20251001`), sem tools, 50 msgs/mês
-- **Pro:** Claude Sonnet 4.6 (`claude-sonnet-4-6`), com function calling, 200 msgs/mês
+- **Basic:** Gemini 2.0 Flash (`gemini-2.0-flash`), sem tools, 50 msgs/mês
+- **Pro:** Gemini 2.5 Flash (`gemini-2.5-flash`), com function calling, 200 msgs/mês
 - Contexto: transações categorizadas do usuário (últimos 3 meses, agregado)
 - Responde APENAS com base nos dados reais — nunca inventar números
 - Rate limit verificado server-side ANTES de chamar a API (campo `ai_queries_this_month`)
@@ -95,7 +95,7 @@ interface ParsedTransaction {
 - `chat-system.ts` — system prompt do assistente financeiro PT-BR
 
 ### cache.ts
-- Consulta `category_cache` antes de chamar Haiku
+- Consulta `category_cache` antes de chamar a IA
 - Chave: `description_normalized` (lowercase, trim, whitespace-collapse)
 
 ---
@@ -111,8 +111,8 @@ import { PLAN_LIMITS, CATEGORIES, Category, getEffectiveTier } from '@/lib/billi
 - **Usar apenas server-side** para decisões de autorização
 
 Planos:
-- **Basic** (R$19,90/mês): 3 contas, Haiku, 50 msgs/mês, sem áudio, sem function calling
-- **Pro** (R$49,90/mês): contas ilimitadas, Sonnet, 200 msgs/mês, áudio Whisper, function calling
+- **Basic** (R$19,90/mês): 3 contas, Gemini Flash, 50 msgs/mês, sem áudio, sem function calling
+- **Pro** (R$49,90/mês): contas ilimitadas, Gemini Pro, 200 msgs/mês, áudio Whisper, function calling
 
 ### asaas.ts
 - Cliente HTTP para Asaas API

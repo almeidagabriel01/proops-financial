@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { MessageCircle, Target, Upload, Settings, Wallet } from 'lucide-react';
-import { Card } from '@/components/ui/card';
 
 const menuItems = [
   { href: '/chat', icon: MessageCircle, label: 'Chat IA', description: 'Pergunte sobre suas finanças', color: 'text-blue-600 bg-blue-500/10' },
@@ -12,25 +11,27 @@ const menuItems = [
 
 export default function MorePage() {
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-lg font-semibold">Mais</h1>
-      <div className="space-y-2">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.href} href={item.href}>
-              <Card className="flex items-center gap-3 p-4 active:bg-muted transition-colors">
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${item.color}`}>
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.description}</p>
+    <div className="h-full overflow-y-auto">
+      <div className="px-4 py-4 pb-24 lg:px-8 lg:py-6 lg:pb-28">
+        <h1 className="mb-4 text-xl font-bold text-foreground lg:text-3xl">Mais</h1>
+        <div className="space-y-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="block">
+                <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors active:bg-muted hover:bg-muted/40">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${item.color}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </div>
                 </div>
-              </Card>
-            </Link>
-          );
-        })}
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

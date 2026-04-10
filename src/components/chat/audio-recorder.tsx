@@ -25,6 +25,7 @@ export function AudioRecorder({ onTranscript, disabled }: AudioRecorderProps) {
     setError(null);
 
     const blob = new Blob(chunks, { type: mimeType });
+    console.log('[audio] mimeType:', blob.type, 'size:', blob.size);
     const file = new File([blob], 'audio.webm', { type: mimeType });
     const form = new FormData();
     form.append('file', file);

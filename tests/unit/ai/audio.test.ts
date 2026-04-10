@@ -18,10 +18,10 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock OpenAI SDK — default export is a class constructor
+// Mock Groq SDK — default export is a class constructor
 // ---------------------------------------------------------------------------
-vi.mock('openai', () => {
-  function MockOpenAI() {
+vi.mock('groq-sdk', () => {
+  function MockGroq() {
     return {
       audio: {
         transcriptions: {
@@ -30,7 +30,7 @@ vi.mock('openai', () => {
       },
     };
   }
-  return { default: MockOpenAI };
+  return { default: MockGroq };
 });
 
 // ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ const { POST } = await import('@/app/api/audio/route');
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function makeRequest(file: File | null, hasKey = true): Request {
+function makeRequest(file: File | null): Request {
   const form = new FormData();
   if (file) form.append('file', file);
   return {
@@ -49,13 +49,13 @@ function makeRequest(file: File | null, hasKey = true): Request {
   } as unknown as Request;
 }
 
-function makePro(audioEnabled = true) {
+function makePro() {
   mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
   mockFrom.mockReturnValue({
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
-          data: { plan: 'pro', trial_ends_at: null, audio_enabled: audioEnabled },
+          data: { plan: 'pro', trial_ends_at: null, audio_enabled: true },
           error: null,
         }),
       }),
@@ -86,7 +86,7 @@ function makeWebmFile(sizeBytes = 1000) {
 // ---------------------------------------------------------------------------
 describe('/api/audio stub mode', () => {
   beforeEach(() => {
-    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('GROQ_API_KEY', '');
     mockCreate.mockClear();
   });
 
@@ -94,7 +94,7 @@ describe('/api/audio stub mode', () => {
     vi.unstubAllEnvs();
   });
 
-  it('retorna transcrição de demonstração quando OPENAI_API_KEY não configurada', async () => {
+  it('retorna transcrição de demonstração quando GROQ_API_KEY não configurada', async () => {
     makePro();
     const req = makeRequest(makeWebmFile());
 
@@ -109,7 +109,7 @@ describe('/api/audio stub mode', () => {
 
 describe('/api/audio validação', () => {
   beforeEach(() => {
-    vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+    vi.stubEnv('GROQ_API_KEY', 'gsk-test');
     mockCreate.mockReset();
   });
 
@@ -127,12 +127,25 @@ describe('/api/audio validação', () => {
     expect(body.error).toBe('audio_pro_only');
   });
 
-  it('retorna 403 quando audio_enabled=false mesmo sendo Pro', async () => {
-    makePro(false); // Pro but audio disabled
+  it('Pro com audio_enabled=false ainda tem acesso (plano é fonte de verdade)', async () => {
+    // M4 fix: audio_enabled is a cached hint; plan/trial is the source of truth.
+    // A Pro subscriber with a stale audio_enabled=false must not be locked out.
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { plan: 'pro', trial_ends_at: null, audio_enabled: false },
+            error: null,
+          }),
+        }),
+      }),
+    });
+    mockCreate.mockResolvedValue({ text: 'teste' });
     const req = makeRequest(makeWebmFile());
 
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it('retorna 401 quando não autenticado', async () => {
@@ -166,7 +179,7 @@ describe('/api/audio validação', () => {
 
   it('retorna 400 para formato não suportado', async () => {
     makePro();
-    const invalidFile = new File([new Uint8Array(100)], 'audio.ogg', { type: 'audio/ogg' });
+    const invalidFile = new File([new Uint8Array(100)], 'audio.flac', { type: 'audio/flac' });
     const req = makeRequest(invalidFile);
 
     const res = await POST(req);
@@ -175,7 +188,7 @@ describe('/api/audio validação', () => {
     expect(body.error).toContain('Formato não suportado');
   });
 
-  it('chama Whisper e retorna transcript para Pro com OPENAI_API_KEY', async () => {
+  it('chama Whisper e retorna transcript para Pro com GROQ_API_KEY', async () => {
     makePro();
     mockCreate.mockResolvedValue({ text: 'Quanto gastei esse mês?' });
 

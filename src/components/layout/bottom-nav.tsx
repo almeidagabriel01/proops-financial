@@ -18,7 +18,13 @@ export function BottomNav({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className={cn("fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card", className)}>
+    <nav className={cn(
+      "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card",
+      // Safe area: espaço para o home indicator do iPhone (env(safe-area-inset-bottom))
+      // Requer viewport-fit=cover no layout.tsx
+      "pb-[env(safe-area-inset-bottom)]",
+      className,
+    )}>
       <div className="mx-auto flex max-w-screen-lg items-center justify-around">
         {/* Tabs antes do FAB */}
         {tabs.slice(0, 2).map((tab) => {

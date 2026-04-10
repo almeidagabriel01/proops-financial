@@ -53,6 +53,35 @@ export function getMonthBounds(date: Date = new Date()): { start: string; end: s
   };
 }
 
+/** Retorna YYYY-MM do mês atual */
+export function currentYM(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Formata string de dígitos como moeda BR (ex: "150000" → "1.500,00") */
+export function maskCurrency(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  return (num / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Inicializa máscara a partir de um valor numérico */
+export function initCurrencyMask(amount?: number | null): string {
+  if (!amount || amount <= 0) return '';
+  return maskCurrency(String(Math.round(amount * 100)));
+}
+
+/** Parse da string mascarada para número (ex: "1.500,00" → 1500) */
+export function parseCurrencyMask(masked: string): number {
+  if (!masked) return 0;
+  return parseFloat(masked.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
 export function getPrevMonthBounds(): { start: string; end: string } {
   const now = new Date();
   return getMonthBounds(new Date(now.getFullYear(), now.getMonth() - 1, 1));
