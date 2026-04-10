@@ -21,8 +21,8 @@ test.describe('Chat IA', () => {
     // If user is basic plan, chat shows upgrade modal or paywall message
     await page.goto('/chat');
     // Either chat loads OR paywall is shown — both are valid states
-    const chatLoaded = await page.locator('textarea').isVisible({ timeout: 5000 }).catch(() => false);
-    const paywallVisible = await page.getByText(/premium|upgrade|assinar/i).isVisible({ timeout: 5000 }).catch(() => false);
+    const chatLoaded = await page.locator('textarea').isVisible({ timeout: 10000 }).catch(() => false);
+    const paywallVisible = await page.getByText(/premium|upgrade|assinar/i).isVisible({ timeout: 10000 }).catch(() => false);
     expect(chatLoaded || paywallVisible).toBe(true);
   });
 

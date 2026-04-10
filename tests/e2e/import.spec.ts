@@ -29,9 +29,9 @@ test.describe('Importação de extrato', () => {
     // Click the import button to start processing
     await page.getByRole('button', { name: /importar/i }).click();
 
-    // Should show processing feedback (uploading → processing → categorizing)
+    // Should show processing feedback — narrow to <p> to avoid matching the button text
     await expect(
-      page.getByText(/enviando|processando|importando|categorizando|analisando/i),
+      page.locator('p').filter({ hasText: /enviando arquivo|processando extrato|categorizando transações/i }),
     ).toBeVisible({ timeout: 15000 });
   });
 

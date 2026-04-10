@@ -13,16 +13,10 @@ test.describe('Dashboard', () => {
   });
 
   test('carrega cards de resumo (receita, despesa, saldo)', async ({ page }) => {
-    // The dashboard always renders a heading — verify the page loaded correctly
+    // Dashboard always renders h1 (period label) — confirms page loaded
     await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
-    // Summary cards or empty state must be present (new user may have no data)
-    const hasSummaryOrEmpty = await page
-      .locator('.grid, [data-testid="dashboard-empty"]')
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
-    const hasHeading = await page.getByText(/resumo financeiro/i).isVisible().catch(() => false);
-    expect(hasSummaryOrEmpty || hasHeading).toBe(true);
+    // With data: SummaryCards renders .grid; without data: DashboardEmptyState renders h2
+    await expect(page.locator('.grid, h2').first()).toBeVisible({ timeout: 8000 });
   });
 
   test('navega para /transactions via bottom nav', async ({ page }) => {
