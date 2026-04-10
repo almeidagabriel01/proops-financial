@@ -14,8 +14,8 @@ test.describe('Importação de extrato', () => {
 
   test('/import carrega área de upload', async ({ page }) => {
     await page.goto('/import');
-    // Should show file upload area
-    await expect(page.getByText(/arraste|selecione|upload/i)).toBeVisible({ timeout: 8000 });
+    // Use .first() to avoid strict mode violation when multiple elements match
+    await expect(page.getByText(/arraste|selecione|upload/i).first()).toBeVisible({ timeout: 8000 });
   });
 
   test('upload de CSV Nubank mostra feedback de progresso', async ({ page }) => {
@@ -26,9 +26,12 @@ test.describe('Importação de extrato', () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(fixturePath);
 
-    // Should show processing feedback
+    // Click the import button to start processing
+    await page.getByRole('button', { name: /importar/i }).click();
+
+    // Should show processing feedback (uploading → processing → categorizing)
     await expect(
-      page.getByText(/processando|importando|categorizando|analisando/i),
+      page.getByText(/enviando|processando|importando|categorizando|analisando/i),
     ).toBeVisible({ timeout: 15000 });
   });
 

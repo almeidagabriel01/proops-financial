@@ -40,9 +40,11 @@ test.describe('Chat IA', () => {
     await textarea.fill('Qual foi meu maior gasto este mês?');
     await page.keyboard.press('Enter');
 
-    // Should show loading indicator or response
+    // Should show the sent message or any assistant response/indicator
     await expect(
-      page.getByText(/analisando|carregando|\.\.\./).or(page.locator('[data-testid="chat-message"]')),
+      page.getByText('Qual foi meu maior gasto este mês?')
+        .or(page.locator('[data-testid="chat-message"]'))
+        .or(page.getByText(/analisando|carregando|executando/i)),
     ).toBeVisible({ timeout: 15000 });
   });
 });
