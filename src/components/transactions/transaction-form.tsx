@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
   SelectContent,
@@ -22,6 +22,7 @@ import {
 import { CategorySelector } from '@/components/transactions/category-selector';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { sanitizeCategory } from '@/lib/utils/categories';
+import { maskCurrency, parseCurrencyMask, initCurrencyMask } from '@/lib/utils/format';
 import type { Transaction } from '@/hooks/use-transactions';
 import { createClient } from '@/lib/supabase/client';
 
@@ -37,7 +38,7 @@ interface TransactionFormValues {
   amount: string;
   type: 'credit' | 'debit';
   category: string;
-  bank_account_id: string; // 'manual' = let server create/reuse
+  bank_account_id: string;
 }
 
 interface TransactionFormErrors {
@@ -51,7 +52,6 @@ interface TransactionFormProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  /** When provided, the form is in edit mode */
   transaction?: Transaction;
 }
 
@@ -60,10 +60,6 @@ const DATE_WARN_YEARS = 10;
 
 function todayISO(): string {
   return new Date().toISOString().split('T')[0];
-}
-
-function parseAmountDisplay(tx: Transaction): string {
-  return Math.abs(tx.amount).toFixed(2).replace('.', ',');
 }
 
 function getDateWarning(dateStr: string): string | null {
@@ -86,7 +82,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
   const [values, setValues] = useState<TransactionFormValues>(() => ({
     date: transaction?.date ?? todayISO(),
     description: transaction?.description ?? '',
-    amount: transaction ? parseAmountDisplay(transaction) : '',
+    amount: initCurrencyMask(transaction ? Math.abs(transaction.amount) : undefined),
     type: transaction?.type ?? 'debit',
     category: transaction?.category ?? 'outros',
     bank_account_id: transaction?.bank_account_id ?? 'manual',
@@ -96,7 +92,6 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
   const [isSaving, setIsSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Load user's bank accounts when the form opens
   useEffect(() => {
     if (!open) return;
     supabase
@@ -106,13 +101,12 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
       .then(({ data }) => { setAccounts(data ?? []); });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset form state when open/transaction changes
   useEffect(() => {
     if (open) {
       setValues({
         date: transaction?.date ?? todayISO(),
         description: transaction?.description ?? '',
-        amount: transaction ? parseAmountDisplay(transaction) : '',
+        amount: initCurrencyMask(transaction ? Math.abs(transaction.amount) : undefined),
         type: transaction?.type ?? 'debit',
         category: transaction?.category ?? 'outros',
         bank_account_id: transaction?.bank_account_id ?? 'manual',
@@ -125,25 +119,20 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
 
   function validate(): boolean {
     const newErrors: TransactionFormErrors = {};
-
     if (!values.date) newErrors.date = 'Data obrigatória';
-
     if (!values.description.trim()) {
       newErrors.description = 'Descrição obrigatória';
     } else if (values.description.trim().length > 255) {
       newErrors.description = 'Máximo 255 caracteres';
     }
-
-    const numericAmount = parseFloat(values.amount.replace(',', '.'));
-    if (!values.amount || isNaN(numericAmount) || numericAmount <= 0) {
+    const numericAmount = parseCurrencyMask(values.amount);
+    if (!values.amount || numericAmount <= 0) {
       newErrors.amount = 'Valor deve ser maior que zero';
     } else if (numericAmount > 999999.99) {
       newErrors.amount = 'Valor máximo: R$ 999.999,99';
     }
-
     const cat = sanitizeCategory(values.category);
     if (!cat) newErrors.category = 'Selecione ou informe uma categoria';
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -153,11 +142,10 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-
     setIsSaving(true);
     setServerError(null);
 
-    const amount = parseFloat(values.amount.replace(',', '.'));
+    const amount = parseCurrencyMask(values.amount);
     const body: Record<string, unknown> = {
       date: values.date,
       description: values.description.trim(),
@@ -165,7 +153,6 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
       type: values.type,
       category: values.category,
     };
-
     if (!isEdit && values.bank_account_id !== 'manual') {
       body.bank_account_id = values.bank_account_id;
     }
@@ -173,19 +160,16 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     try {
       const url = isEdit ? `/api/transactions/${transaction!.id}` : '/api/transactions';
       const method = isEdit ? 'PATCH' : 'POST';
-
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         setServerError(data.error ?? 'Erro ao salvar transação');
         return;
       }
-
       toast.success(isEdit ? 'Transação atualizada' : 'Transação adicionada com sucesso');
       onSuccess();
       onClose();
@@ -206,7 +190,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
 
   const formBody = (
     <form id={FORM_ID} onSubmit={(e) => void handleSubmit(e)} noValidate className="space-y-4">
-      {/* Tipo — toggle despesa/receita */}
+      {/* Tipo */}
       <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
         <button
           type="button"
@@ -237,7 +221,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-desc">
           Descrição
         </label>
-        <Input
+        <input
           id="txn-desc"
           type="text"
           placeholder="Ex: Aluguel, Salário, Supermercado..."
@@ -247,7 +231,9 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             setValues((prev) => ({ ...prev, description: e.target.value }));
             if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
           }}
-          className={errors.description ? 'border-destructive' : ''}
+          className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors ${
+            errors.description ? 'border-destructive' : 'border-input'
+          }`}
         />
         {errors.description && (
           <p className="mt-1 text-xs text-destructive">{errors.description}</p>
@@ -269,46 +255,40 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         )}
       </div>
 
-      {/* Valor + Data — 2 colunas no desktop, empilhados no mobile */}
+      {/* Valor + Data — 2 colunas no desktop */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-amount">
             Valor (R$)
           </label>
-          <Input
+          <input
             id="txn-amount"
             type="text"
             inputMode="decimal"
             placeholder="0,00"
             value={values.amount}
             onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9,]/g, '');
-              setValues((prev) => ({ ...prev, amount: v }));
+              setValues((prev) => ({ ...prev, amount: maskCurrency(e.target.value) }));
               if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
             }}
-            className={errors.amount ? 'border-destructive' : ''}
+            className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors ${
+              errors.amount ? 'border-destructive' : 'border-input'
+            }`}
           />
           {errors.amount && (
             <p className="mt-1 text-xs text-destructive">{errors.amount}</p>
           )}
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-date">
-            Data
-          </label>
-          <input
-            id="txn-date"
-            type="date"
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Data</label>
+          <DatePicker
             value={values.date}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(v) => {
               setValues((prev) => ({ ...prev, date: v }));
               setDateWarning(getDateWarning(v));
               if (errors.date) setErrors((prev) => ({ ...prev, date: undefined }));
             }}
-            className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
-              errors.date ? 'border-destructive' : 'border-input'
-            }`}
+            placeholder="Selecionar data"
           />
           {errors.date && (
             <p className="mt-1 text-xs text-destructive">{errors.date}</p>

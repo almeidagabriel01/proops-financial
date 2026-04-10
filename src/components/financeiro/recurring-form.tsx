@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { CategorySelector } from '@/components/transactions/category-selector';
 import {
   Select,
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
+import { maskCurrency, parseCurrencyMask } from '@/lib/utils/format';
 import { FREQUENCY_LABELS, type RecurringRule } from '@/hooks/use-recurring-rules';
 
 interface RecurringFormProps {
@@ -73,7 +75,7 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const amount = parseFloat(amountStr.replace(',', '.'));
+    const amount = parseCurrencyMask(amountStr);
     if (!description.trim()) { setError('Descrição obrigatória'); return; }
     if (!amount || amount <= 0) { setError('Valor inválido'); return; }
     if (!startDate) { setError('Data de início obrigatória'); return; }
@@ -151,12 +153,11 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
           </label>
           <Input
             id="rec-amount"
-            type="number"
-            step="0.01"
-            min="0.01"
+            type="text"
+            inputMode="decimal"
             placeholder="0,00"
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={(e) => setAmountStr(maskCurrency(e.target.value))}
             className="text-base"
           />
         </div>
@@ -181,26 +182,22 @@ export function RecurringForm({ open, onClose, onSubmit, bankAccounts }: Recurri
       {/* Data início + Data fim — 2 colunas no desktop */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-sm font-medium" htmlFor="rec-start">
-            Data de início
-          </label>
-          <Input
-            id="rec-start"
-            type="date"
+          <label className="mb-1.5 block text-sm font-medium">Data de início</label>
+          <DatePicker
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={setStartDate}
+            placeholder="Selecionar data"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium" htmlFor="rec-end">
+          <label className="mb-1.5 block text-sm font-medium">
             Data de fim{' '}
             <span className="font-normal text-muted-foreground">(opcional)</span>
           </label>
-          <Input
-            id="rec-end"
-            type="date"
+          <DatePicker
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={setEndDate}
+            placeholder="Sem data de fim"
             min={startDate}
           />
         </div>

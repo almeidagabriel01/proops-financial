@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CategorySelector } from '@/components/transactions/category-selector';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
+import { maskCurrency, parseCurrencyMask, initCurrencyMask } from '@/lib/utils/format';
 import type { Budget } from '@/hooks/use-budgets';
 
 interface BudgetFormProps {
@@ -27,7 +28,7 @@ const FORM_ID = 'budget-form';
 export function BudgetForm({ open, onClose, onSubmit, editing }: BudgetFormProps) {
   const isDesktop = useIsDesktop();
   const [category, setCategory] = useState(editing?.category ?? 'outros');
-  const [limitStr, setLimitStr] = useState(editing ? String(editing.monthly_limit) : '');
+  const [limitStr, setLimitStr] = useState(initCurrencyMask(editing?.monthly_limit));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export function BudgetForm({ open, onClose, onSubmit, editing }: BudgetFormProps
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const limit = parseFloat(limitStr.replace(',', '.'));
+    const limit = parseCurrencyMask(limitStr);
     if (!limit || limit <= 0) {
       setError('Informe um limite válido');
       return;
@@ -69,12 +70,11 @@ export function BudgetForm({ open, onClose, onSubmit, editing }: BudgetFormProps
         </label>
         <Input
           id="budget-limit"
-          type="number"
-          step="0.01"
-          min="0.01"
-          placeholder="500,00"
+          type="text"
+          inputMode="decimal"
+          placeholder="0,00"
           value={limitStr}
-          onChange={(e) => setLimitStr(e.target.value)}
+          onChange={(e) => setLimitStr(maskCurrency(e.target.value))}
           className="text-base"
         />
       </div>

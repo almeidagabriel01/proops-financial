@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { CategorySelector } from '@/components/transactions/category-selector';
 import {
   Select,
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
+import { maskCurrency, parseCurrencyMask } from '@/lib/utils/format';
 
 interface ScheduledFormProps {
   open: boolean;
@@ -67,7 +69,7 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const amount = parseFloat(amountStr.replace(',', '.'));
+    const amount = parseCurrencyMask(amountStr);
     if (!description.trim()) { setError('Descrição obrigatória'); return; }
     if (!amount || amount <= 0) { setError('Valor inválido'); return; }
     if (!dueDate) { setError('Data de vencimento obrigatória'); return; }
@@ -143,24 +145,20 @@ export function ScheduledForm({ open, onClose, onSubmit, bankAccounts }: Schedul
           </label>
           <Input
             id="sched-amount"
-            type="number"
-            step="0.01"
-            min="0.01"
+            type="text"
+            inputMode="decimal"
             placeholder="0,00"
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={(e) => setAmountStr(maskCurrency(e.target.value))}
             className="text-base"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium" htmlFor="sched-date">
-            Vencimento
-          </label>
-          <Input
-            id="sched-date"
-            type="date"
+          <label className="mb-1.5 block text-sm font-medium">Vencimento</label>
+          <DatePicker
             value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            onChange={setDueDate}
+            placeholder="Selecionar data"
           />
         </div>
       </div>
