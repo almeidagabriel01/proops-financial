@@ -474,7 +474,7 @@ const BASIC_FEATURES = [
   'Histórico ilimitado de transações',
   'Categorização automática com IA',
   'Dashboard completo + comparativos mensais',
-  'Chat IA (Haiku) — 50 perguntas/mês',
+  'Chat IA (Gemini Flash) — 50 perguntas/mês',
   'Importação OFX e CSV',
   'Suporte por email',
 ];
@@ -484,7 +484,7 @@ const PRO_FEATURES = [
   'Histórico ilimitado de transações',
   'Categorização automática com IA',
   'Dashboard completo + comparativos mensais',
-  'Chat IA avançado (Sonnet) — 200 perguntas/mês',
+  'Chat IA avançado (Gemini Pro) — 200 perguntas/mês',
   'Ações por IA: metas, orçamentos, transações',
   'Entrada por áudio (transcrição automática)',
   'Importação OFX e CSV',

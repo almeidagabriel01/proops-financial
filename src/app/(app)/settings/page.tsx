@@ -225,11 +225,11 @@ function PlanTab() {
             <span className="text-sm font-normal text-muted-foreground">/mês</span>
           </p>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            <li>✓ 1 conta bancária</li>
+            <li>✓ 3 contas bancárias</li>
             <li>✓ Mês atual de histórico</li>
             <li>✓ Categorização IA</li>
             <li>✓ Dashboard completo</li>
-            <li className="text-muted-foreground/50">✗ Chat IA</li>
+            <li>✓ Chat IA (50 msgs/mês)</li>
             <li className="text-muted-foreground/50">✗ Histórico ilimitado</li>
           </ul>
         </div>
@@ -255,7 +255,7 @@ function PlanTab() {
             <li>✓ Histórico ilimitado</li>
             <li>✓ Categorização IA</li>
             <li>✓ Dashboard + Comparativos</li>
-            <li>✓ Chat IA (20 msgs/dia)</li>
+            <li>✓ Chat IA (200 msgs/mês)</li>
             <li>✓ Entrada por áudio</li>
           </ul>
           {!isPro && (
