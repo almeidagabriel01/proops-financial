@@ -4,7 +4,18 @@ import Groq from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 
-const ACCEPTED_FORMATS = ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/x-m4a', 'audio/mpeg'];
+// Base MIME types accepted by Groq Whisper (codec variants and empty string are also allowed)
+const ACCEPTED_BASE_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/mpeg',
+  'audio/mp3',
+  'video/webm', // some browsers label WebM recordings as video/webm
+]);
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB (Whisper API limit)
 
 export async function POST(req: Request) {
@@ -56,9 +67,11 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!ACCEPTED_FORMATS.includes(file.type)) {
+  // Normalize: strip codec params (e.g. "audio/webm;codecs=opus" → "audio/webm")
+  const baseType = file.type.split(';')[0].trim();
+  if (baseType && !ACCEPTED_BASE_TYPES.has(baseType)) {
     return NextResponse.json(
-      { error: 'Formato não suportado. Use webm, mp4, wav ou m4a' },
+      { error: 'Formato não suportado. Use webm, ogg, mp4, wav ou m4a' },
       { status: 400 },
     );
   }
