@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,30 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATEGORIES } from '@/lib/billing/plans';
-import type { Category } from '@/lib/billing/plans';
+import { CategorySelector } from '@/components/transactions/category-selector';
+import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { sanitizeCategory } from '@/lib/utils/categories';
 import type { Transaction } from '@/hooks/use-transactions';
 import { createClient } from '@/lib/supabase/client';
-
-const CATEGORY_LABELS: Record<Category, string> = {
-  alimentacao: 'Alimentação',
-  delivery: 'Delivery',
-  transporte: 'Transporte',
-  moradia: 'Moradia',
-  saude: 'Saúde',
-  educacao: 'Educação',
-  lazer: 'Lazer',
-  compras: 'Compras',
-  assinaturas: 'Assinaturas',
-  transferencias: 'Transferências',
-  salario: 'Salário',
-  investimentos: 'Investimentos',
-  impostos: 'Impostos',
-  outros: 'Outros',
-};
-
-const CUSTOM_VALUE = '__custom__';
 
 interface BankAccount {
   id: string;
@@ -67,6 +55,7 @@ interface TransactionFormProps {
   transaction?: Transaction;
 }
 
+const FORM_ID = 'transaction-form';
 const DATE_WARN_YEARS = 10;
 
 function todayISO(): string {
@@ -90,37 +79,34 @@ function getDateWarning(dateStr: string): string | null {
 
 export function TransactionForm({ open, onClose, onSuccess, transaction }: TransactionFormProps) {
   const isEdit = !!transaction;
+  const isDesktop = useIsDesktop();
   const supabase = createClient();
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-
   const [values, setValues] = useState<TransactionFormValues>(() => ({
     date: transaction?.date ?? todayISO(),
     description: transaction?.description ?? '',
     amount: transaction ? parseAmountDisplay(transaction) : '',
     type: transaction?.type ?? 'debit',
-    category: (transaction?.category as Category) ?? 'outros',
+    category: transaction?.category ?? 'outros',
     bank_account_id: transaction?.bank_account_id ?? 'manual',
-  } satisfies TransactionFormValues));
+  }));
   const [errors, setErrors] = useState<TransactionFormErrors>({});
   const [dateWarning, setDateWarning] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Load user's bank accounts when the sheet opens
+  // Load user's bank accounts when the form opens
   useEffect(() => {
     if (!open) return;
-
     supabase
       .from('bank_accounts')
       .select('id, bank_name, account_label')
       .order('bank_name', { ascending: true })
-      .then(({ data }) => {
-        setAccounts(data ?? []);
-      });
+      .then(({ data }) => { setAccounts(data ?? []); });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset form state when the sheet opens/closes or transaction changes
+  // Reset form state when open/transaction changes
   useEffect(() => {
     if (open) {
       setValues({
@@ -128,7 +114,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
         description: transaction?.description ?? '',
         amount: transaction ? parseAmountDisplay(transaction) : '',
         type: transaction?.type ?? 'debit',
-        category: (transaction?.category as Category) ?? 'outros',
+        category: transaction?.category ?? 'outros',
         bank_account_id: transaction?.bank_account_id ?? 'manual',
       });
       setErrors({});
@@ -140,9 +126,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
   function validate(): boolean {
     const newErrors: TransactionFormErrors = {};
 
-    if (!values.date) {
-      newErrors.date = 'Data obrigatória';
-    }
+    if (!values.date) newErrors.date = 'Data obrigatória';
 
     if (!values.description.trim()) {
       newErrors.description = 'Descrição obrigatória';
@@ -158,9 +142,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     }
 
     const cat = sanitizeCategory(values.category);
-    if (!cat || cat === CUSTOM_VALUE) {
-      newErrors.category = 'Selecione ou informe uma categoria';
-    }
+    if (!cat) newErrors.category = 'Selecione ou informe uma categoria';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -184,7 +166,6 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
       category: values.category,
     };
 
-    // Only send bank_account_id when user explicitly selected one (not 'manual')
     if (!isEdit && values.bank_account_id !== 'manual') {
       body.bank_account_id = values.bank_account_id;
     }
@@ -220,195 +201,206 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
     onClose();
   }
 
+  const title = isEdit ? 'Editar transação' : 'Nova transação';
+  const submitLabel = isSaving ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar transação';
+
+  const formBody = (
+    <form id={FORM_ID} onSubmit={(e) => void handleSubmit(e)} noValidate className="space-y-4">
+      {/* Tipo — toggle despesa/receita */}
+      <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setValues((v) => ({ ...v, type: 'debit' }))}
+          className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
+            values.type === 'debit'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground'
+          }`}
+        >
+          Despesa
+        </button>
+        <button
+          type="button"
+          onClick={() => setValues((v) => ({ ...v, type: 'credit' }))}
+          className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
+            values.type === 'credit'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground'
+          }`}
+        >
+          Receita
+        </button>
+      </div>
+
+      {/* Descrição */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-desc">
+          Descrição
+        </label>
+        <Input
+          id="txn-desc"
+          type="text"
+          placeholder="Ex: Aluguel, Salário, Supermercado..."
+          maxLength={255}
+          value={values.description}
+          onChange={(e) => {
+            setValues((prev) => ({ ...prev, description: e.target.value }));
+            if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
+          }}
+          className={errors.description ? 'border-destructive' : ''}
+        />
+        {errors.description && (
+          <p className="mt-1 text-xs text-destructive">{errors.description}</p>
+        )}
+      </div>
+
+      {/* Categoria */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-foreground">Categoria</label>
+        <CategorySelector
+          currentCategory={values.category}
+          onSelect={(cat) => {
+            setValues((prev) => ({ ...prev, category: cat }));
+            if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
+          }}
+        />
+        {errors.category && (
+          <p className="mt-1 text-xs text-destructive">{errors.category}</p>
+        )}
+      </div>
+
+      {/* Valor + Data — 2 colunas no desktop, empilhados no mobile */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-amount">
+            Valor (R$)
+          </label>
+          <Input
+            id="txn-amount"
+            type="text"
+            inputMode="decimal"
+            placeholder="0,00"
+            value={values.amount}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9,]/g, '');
+              setValues((prev) => ({ ...prev, amount: v }));
+              if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
+            }}
+            className={errors.amount ? 'border-destructive' : ''}
+          />
+          {errors.amount && (
+            <p className="mt-1 text-xs text-destructive">{errors.amount}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="txn-date">
+            Data
+          </label>
+          <input
+            id="txn-date"
+            type="date"
+            value={values.date}
+            onChange={(e) => {
+              const v = e.target.value;
+              setValues((prev) => ({ ...prev, date: v }));
+              setDateWarning(getDateWarning(v));
+              if (errors.date) setErrors((prev) => ({ ...prev, date: undefined }));
+            }}
+            className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
+              errors.date ? 'border-destructive' : 'border-input'
+            }`}
+          />
+          {errors.date && (
+            <p className="mt-1 text-xs text-destructive">{errors.date}</p>
+          )}
+          {!errors.date && dateWarning && (
+            <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">{dateWarning}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Conta — apenas no modo criar */}
+      {!isEdit && (
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
+            Conta <span className="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <Select
+            value={values.bank_account_id}
+            onValueChange={(v) => setValues((prev) => ({ ...prev, bank_account_id: v ?? 'manual' }))}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Manual (criada automaticamente)</SelectItem>
+              {accounts.map((acc) => (
+                <SelectItem key={acc.id} value={acc.id}>
+                  {acc.bank_name}{acc.account_label ? ` — ${acc.account_label}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {serverError && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {serverError}
+        </p>
+      )}
+    </form>
+  );
+
+  const actionButtons = (variant: 'dialog' | 'sheet') =>
+    variant === 'dialog' ? (
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={handleClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" form={FORM_ID} disabled={isSaving || hasErrors}>
+          {submitLabel}
+        </Button>
+      </DialogFooter>
+    ) : (
+      <div className="mt-4 flex gap-3">
+        <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" form={FORM_ID} className="flex-1" disabled={isSaving || hasErrors}>
+          {submitLabel}
+        </Button>
+      </div>
+    );
+
+  /* ── Desktop: Dialog centralizado ────────────────────────────── */
+  if (isDesktop) {
+    return (
+      <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
+          {formBody}
+          {actionButtons('dialog')}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  /* ── Mobile: Sheet da base ────────────────────────────────────── */
   return (
     <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
       <SheetContent
         side="bottom"
-        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4"
-        style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+        className="max-h-[92dvh] overflow-y-auto rounded-t-2xl"
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
       >
-        <SheetHeader className="pb-4 pt-2">
-          <SheetTitle>{isEdit ? 'Editar transação' : 'Nova transação'}</SheetTitle>
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
-
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {/* Tipo — toggle receita/despesa */}
-          <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
-            <button
-              type="button"
-              onClick={() => setValues((v) => ({ ...v, type: 'debit' }))}
-              className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
-                values.type === 'debit'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              Despesa
-            </button>
-            <button
-              type="button"
-              onClick={() => setValues((v) => ({ ...v, type: 'credit' }))}
-              className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
-                values.type === 'credit'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              Receita
-            </button>
-          </div>
-
-          {/* Valor */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Valor (R$)
-            </label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={values.amount}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9,]/g, '');
-                setValues((prev) => ({ ...prev, amount: v }));
-                if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
-              }}
-              className={errors.amount ? 'border-destructive' : ''}
-            />
-            {errors.amount && (
-              <p className="mt-1 text-xs text-destructive">{errors.amount}</p>
-            )}
-          </div>
-
-          {/* Descrição */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Descrição
-            </label>
-            <Input
-              type="text"
-              placeholder="Ex: Aluguel, Salário, Supermercado..."
-              maxLength={255}
-              value={values.description}
-              onChange={(e) => {
-                setValues((prev) => ({ ...prev, description: e.target.value }));
-                if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }));
-              }}
-              className={errors.description ? 'border-destructive' : ''}
-            />
-            {errors.description && (
-              <p className="mt-1 text-xs text-destructive">{errors.description}</p>
-            )}
-          </div>
-
-          {/* Categoria */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Categoria
-            </label>
-            <Select
-              value={CATEGORIES.includes(values.category as Category) ? values.category : (values.category ? CUSTOM_VALUE : '')}
-              onValueChange={(v: string | null) => {
-                setValues((prev): TransactionFormValues => ({ ...prev, category: v ?? '' }));
-                if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
-              }}
-            >
-              <SelectTrigger className={errors.category ? 'border-destructive' : ''}>
-                <SelectValue placeholder="Selecione..." />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {CATEGORY_LABELS[cat]}
-                  </SelectItem>
-                ))}
-                <SelectItem value={CUSTOM_VALUE}>Personalizada...</SelectItem>
-              </SelectContent>
-            </Select>
-            {(values.category === CUSTOM_VALUE || (!CATEGORIES.includes(values.category as Category) && values.category && values.category !== '')) && (
-              <Input
-                className="mt-2"
-                placeholder="Nome da categoria (ex: loja, pet, beleza)"
-                maxLength={50}
-                value={values.category === CUSTOM_VALUE ? '' : values.category}
-                onChange={(e) => {
-                  setValues((prev) => ({ ...prev, category: e.target.value }));
-                  if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
-                }}
-              />
-            )}
-            {errors.category && (
-              <p className="mt-1 text-xs text-destructive">{errors.category}</p>
-            )}
-          </div>
-
-          {/* Conta — apenas no modo criar */}
-          {!isEdit && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
-                Conta <span className="text-muted-foreground">(opcional)</span>
-              </label>
-              <Select
-                value={values.bank_account_id}
-                onValueChange={(v) => setValues((prev) => ({ ...prev, bank_account_id: v ?? 'manual' }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual (criada automaticamente)</SelectItem>
-                  {accounts.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.bank_name}
-                      {acc.account_label ? ` — ${acc.account_label}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Data */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Data
-            </label>
-            <input
-              type="date"
-              value={values.date}
-              onChange={(e) => {
-                const v = e.target.value;
-                setValues((prev) => ({ ...prev, date: v }));
-                setDateWarning(getDateWarning(v));
-                if (errors.date) setErrors((prev) => ({ ...prev, date: undefined }));
-              }}
-              className={`h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
-                errors.date ? 'border-destructive' : 'border-input'
-              }`}
-            />
-            {errors.date && (
-              <p className="mt-1 text-xs text-destructive">{errors.date}</p>
-            )}
-            {!errors.date && dateWarning && (
-              <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">{dateWarning}</p>
-            )}
-          </div>
-
-          {serverError && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {serverError}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isSaving || hasErrors}
-          >
-            {isSaving ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar transação'}
-          </Button>
-        </form>
+        <div className="mt-4">
+          {formBody}
+          {actionButtons('sheet')}
+        </div>
       </SheetContent>
     </Sheet>
   );
