@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { cancelSubscription } from '@/lib/billing/asaas';
+import { getStripe } from '@/lib/billing/stripe';
 
 export async function DELETE() {
   const supabase = await createClient();
@@ -23,17 +23,17 @@ export async function DELETE() {
     await supabaseAdmin.from('bank_accounts').delete().eq('user_id', userId);
     await supabaseAdmin.from('imports').delete().eq('user_id', userId);
 
-    // 2. Cancel Asaas subscription if active
+    // 2. Cancel Stripe subscription if active
     const { data: sub } = await supabaseAdmin
       .from('subscriptions')
-      .select('asaas_subscription_id')
+      .select('stripe_subscription_id')
       .eq('user_id', userId)
       .in('status', ['active', 'past_due'])
       .maybeSingle();
 
-    if (sub?.asaas_subscription_id) {
+    if (sub?.stripe_subscription_id) {
       try {
-        await cancelSubscription(sub.asaas_subscription_id);
+        await getStripe().subscriptions.cancel(sub.stripe_subscription_id);
       } catch {
         // Ignore — subscription may already be cancelled or not found
       }

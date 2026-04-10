@@ -1,31 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type Stripe from 'stripe';
 
-// Asaas webhook event types relevant to billing
-export type AsaasEventType =
-  | 'PAYMENT_CONFIRMED'
-  | 'PAYMENT_RECEIVED'
-  | 'PAYMENT_OVERDUE'
-  | 'PAYMENT_DELETED'
-  | 'SUBSCRIPTION_CANCELED';
-
-export interface AsaasWebhookEvent {
-  event: AsaasEventType | string;
-  payment?: {
-    id: string;
-    subscription?: string; // asaas_subscription_id
-    customer: string;      // asaas_customer_id
-    status: string;
-    dueDate?: string;      // YYYY-MM-DD — end of billing period (for PAYMENT_CONFIRMED)
-    dateCreated?: string;  // YYYY-MM-DD — start of billing period
-  };
-  subscription?: {
-    id: string;
-    customer: string;
-    status: string;
-  };
-}
-
-// Grace period: 3 days after PAYMENT_OVERDUE before revoking access
+// Grace period: 3 days after invoice.payment_failed before revoking access
 const GRACE_PERIOD_DAYS = 3;
 
 export function isWithinGracePeriod(updatedAt: string): boolean {
@@ -34,75 +10,121 @@ export function isWithinGracePeriod(updatedAt: string): boolean {
   return nowMs - updatedMs < GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 }
 
-export async function handleAsaasWebhook(
-  event: AsaasWebhookEvent,
+export async function handleStripeWebhook(
+  event: Stripe.Event,
   supabase: SupabaseClient
 ): Promise<void> {
-  // Resolve asaas_subscription_id from the event
-  const asaasSubscriptionId =
-    event.subscription?.id ?? event.payment?.subscription ?? null;
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.mode !== 'subscription' || !session.subscription || !session.customer) break;
 
-  if (!asaasSubscriptionId) {
-    // Event has no subscription reference — ignore (e.g. one-off payment)
-    return;
-  }
+      const stripeCustomerId = typeof session.customer === 'string'
+        ? session.customer
+        : session.customer.id;
+      const stripeSubscriptionId = typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription.id;
 
-  switch (event.event) {
-    case 'PAYMENT_CONFIRMED':
-    case 'PAYMENT_RECEIVED': {
-      const { data: confirmedRows } = await supabase
-        .from('subscriptions')
-        .update({
+      // Find user by stripe_customer_id
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('stripe_customer_id', stripeCustomerId)
+        .single();
+
+      if (!profile) {
+        console.warn(`[webhook] checkout.session.completed: no profile for customer ${stripeCustomerId}`);
+        break;
+      }
+
+      await supabase.from('subscriptions').upsert(
+        {
+          user_id: profile.id,
+          stripe_subscription_id: stripeSubscriptionId,
+          billing_cycle: resolveBillingCycle(session),
           status: 'active',
           updated_at: new Date().toISOString(),
-          ...(event.payment?.dateCreated && { current_period_start: event.payment.dateCreated }),
-          ...(event.payment?.dueDate && { current_period_end: event.payment.dueDate }),
-        })
-        .eq('asaas_subscription_id', asaasSubscriptionId)
-        .select('id');
-      if (!confirmedRows?.length) {
-        console.warn(`[webhook] PAYMENT_CONFIRMED: no subscription found for ${asaasSubscriptionId}`);
-      }
-      // Trigger sync_plan_from_subscription fires automatically on update → sets profiles.plan='pro'
+        },
+        { onConflict: 'stripe_subscription_id' }
+      );
       break;
     }
 
-    case 'PAYMENT_OVERDUE': {
-      // Mark as past_due — grace period logic applied in API routes
-      const { data: overdueRows } = await supabase
+    case 'customer.subscription.updated': {
+      const sub = event.data.object as Stripe.Subscription;
+      const status = mapStripeStatus(sub.status);
+      const { data: rows } = await supabase
         .from('subscriptions')
-        .update({
-          status: 'past_due',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('asaas_subscription_id', asaasSubscriptionId)
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', sub.id)
         .select('id');
-      if (!overdueRows?.length) {
-        console.warn(`[webhook] PAYMENT_OVERDUE: no subscription found for ${asaasSubscriptionId}`);
+      if (!rows?.length) {
+        console.warn(`[webhook] customer.subscription.updated: no subscription found for ${sub.id}`);
       }
-      // Trigger does NOT revoke on past_due — grace period maintained
       break;
     }
 
-    case 'SUBSCRIPTION_CANCELED':
-    case 'PAYMENT_DELETED': {
-      const { data: canceledRows } = await supabase
+    case 'customer.subscription.deleted': {
+      const sub = event.data.object as Stripe.Subscription;
+      const { data: rows } = await supabase
         .from('subscriptions')
-        .update({
-          status: 'canceled',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('asaas_subscription_id', asaasSubscriptionId)
+        .update({ status: 'canceled', updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', sub.id)
         .select('id');
-      if (!canceledRows?.length) {
-        console.warn(`[webhook] SUBSCRIPTION_CANCELED/PAYMENT_DELETED: no subscription found for ${asaasSubscriptionId}`);
+      if (!rows?.length) {
+        console.warn(`[webhook] customer.subscription.deleted: no subscription found for ${sub.id}`);
       }
       // Trigger sync_plan_from_subscription fires → sets profiles.plan='basic', audio_enabled=false
       break;
     }
 
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subRef = invoice.parent?.subscription_details?.subscription;
+      const subscriptionId = typeof subRef === 'string' ? subRef : subRef?.id;
+      if (!subscriptionId) break;
+
+      const { data: rows } = await supabase
+        .from('subscriptions')
+        .update({ status: 'past_due', updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', subscriptionId)
+        .select('id');
+      if (!rows?.length) {
+        console.warn(`[webhook] invoice.payment_failed: no subscription found for ${subscriptionId}`);
+      }
+      break;
+    }
+
     default:
-      // Unknown event — ignore; return 200 so Asaas doesn't retry
+      // Unknown event — ignore; return 200 so Stripe doesn't retry
       break;
   }
+}
+
+function mapStripeStatus(
+  stripeStatus: Stripe.Subscription.Status
+): 'active' | 'past_due' | 'canceled' | 'expired' | 'pending' {
+  switch (stripeStatus) {
+    case 'active':
+    case 'trialing':
+      return 'active';
+    case 'past_due':
+    case 'unpaid':
+      return 'past_due';
+    case 'canceled':
+      return 'canceled';
+    case 'incomplete_expired':
+      return 'expired';
+    default:
+      return 'pending';
+  }
+}
+
+function resolveBillingCycle(session: Stripe.Checkout.Session): 'monthly' | 'annual' {
+  // Stripe doesn't expose interval directly on session — use metadata if set,
+  // otherwise default to 'monthly' (webhook customer.subscription.updated will correct it)
+  const cycle = session.metadata?.billing_cycle;
+  if (cycle === 'annual') return 'annual';
+  return 'monthly';
 }

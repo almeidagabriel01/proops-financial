@@ -21,8 +21,7 @@ export const PLANS = {
   basic_monthly: {
     name: 'Basic Mensal',
     price: 1990, // R$19,90 em centavos
-    asaasValue: 19.9,
-    billingCycle: 'MONTHLY' as const,
+    billingCycle: 'monthly' as const,
     features: {
       maxBankAccounts: 3,
       historyMonths: Infinity,
@@ -34,11 +33,10 @@ export const PLANS = {
       functionCalling: false,
     },
   },
-  basic_yearly: {
+  basic_annual: {
     name: 'Basic Anual',
     price: 19100, // R$191,00 (~2 meses grátis)
-    asaasValue: 191.0,
-    billingCycle: 'YEARLY' as const,
+    billingCycle: 'annual' as const,
     features: {
       maxBankAccounts: 3,
       historyMonths: Infinity,
@@ -53,8 +51,7 @@ export const PLANS = {
   pro_monthly: {
     name: 'Pro Mensal',
     price: 4990, // R$49,90 em centavos
-    asaasValue: 49.9,
-    billingCycle: 'MONTHLY' as const,
+    billingCycle: 'monthly' as const,
     features: {
       maxBankAccounts: Infinity,
       historyMonths: Infinity,
@@ -66,11 +63,10 @@ export const PLANS = {
       functionCalling: true,
     },
   },
-  pro_yearly: {
+  pro_annual: {
     name: 'Pro Anual',
     price: 47900, // R$479,00 (~2 meses grátis)
-    asaasValue: 479.0,
-    billingCycle: 'YEARLY' as const,
+    billingCycle: 'annual' as const,
     features: {
       maxBankAccounts: Infinity,
       historyMonths: Infinity,
@@ -88,9 +84,9 @@ export type PlanKey = keyof typeof PLANS;
 export type PlanFeatures = (typeof PLANS)[PlanKey]['features'];
 
 /** Planos que correspondem ao tier 'basic' no profiles.plan */
-export const BASIC_PLAN_KEYS: PlanKey[] = ['basic_monthly', 'basic_yearly'];
+export const BASIC_PLAN_KEYS: PlanKey[] = ['basic_monthly', 'basic_annual'];
 /** Planos que correspondem ao tier 'pro' no profiles.plan */
-export const PRO_PLAN_KEYS: PlanKey[] = ['pro_monthly', 'pro_yearly'];
+export const PRO_PLAN_KEYS: PlanKey[] = ['pro_monthly', 'pro_annual'];
 
 /** Limites por tier de plano (para verificação server-side) */
 export const PLAN_LIMITS = {

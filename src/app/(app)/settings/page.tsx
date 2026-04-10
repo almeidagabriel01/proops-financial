@@ -177,7 +177,7 @@ function PlanTab() {
       const supabase = createClient();
       const { data: sub, error } = await supabase
         .from('subscriptions')
-        .select('asaas_subscription_id')
+        .select('stripe_subscription_id')
         .eq('user_id', user!.id)
         .in('status', ['active', 'past_due'])
         .order('created_at', { ascending: false })
@@ -185,12 +185,12 @@ function PlanTab() {
         .maybeSingle();
 
       if (error) throw new Error(error.message);
-      if (!sub?.asaas_subscription_id) throw new Error('Assinatura não encontrada');
+      if (!sub?.stripe_subscription_id) throw new Error('Assinatura não encontrada');
 
       const res = await fetch(`/api/checkout/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscriptionId: sub.asaas_subscription_id }),
+        body: JSON.stringify({ subscriptionId: sub.stripe_subscription_id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao cancelar');
