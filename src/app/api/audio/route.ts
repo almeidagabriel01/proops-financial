@@ -40,7 +40,11 @@ export async function POST(req: Request) {
   }
 
   const tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
-  const canUseAudio = (tier === 'pro') && profile.audio_enabled;
+  // Double-check: use plan/trial as source of truth; audio_enabled is a cached hint
+  const inTrial = profile.trial_ends_at
+    ? new Date(profile.trial_ends_at) > new Date()
+    : false;
+  const canUseAudio = (profile.plan === 'pro' || inTrial) && tier === 'pro';
 
   if (!canUseAudio) {
     return NextResponse.json({ error: 'audio_pro_only' }, { status: 403 });

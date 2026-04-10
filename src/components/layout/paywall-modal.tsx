@@ -35,7 +35,7 @@ const COMPARISON_ROWS: Row[] = [
   { label: 'Chat IA (consultas)', basic: '50/mês', pro: '200/mês' },
   { label: 'Chat IA (ações)', basic: false, pro: true },
   { label: 'Entrada por áudio', basic: false, pro: true },
-  { label: 'Modelo de IA', basic: 'Haiku', pro: 'Sonnet' },
+  { label: 'Modelo de IA', basic: 'Gemini Flash', pro: 'Gemini Pro' },
 ];
 
 function Cell({ value }: { value: string | boolean }) {

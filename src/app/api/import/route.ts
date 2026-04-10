@@ -7,6 +7,7 @@ import { trackImportCompleted } from '@/lib/analytics/events';
 import { detectInstallments } from '@/lib/installments/detector';
 import { generateFutureInstallments } from '@/lib/installments/generator';
 import { sanitizeCategory } from '@/lib/utils/categories';
+import { getEffectiveTier, PLAN_LIMITS } from '@/lib/billing/plans';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -44,6 +45,32 @@ export async function POST(request: Request) {
 
   // Set Sentry user context
   Sentry.setUser({ id: user.id });
+
+  // ── Etapa 1.5: Verificação de limite de contas (server-side) ──
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('plan, trial_ends_at')
+    .eq('id', user.id)
+    .single();
+
+  if (profile) {
+    const tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
+    const maxAccounts = PLAN_LIMITS[tier].maxBankAccounts;
+
+    if (isFinite(maxAccounts)) {
+      const { count } = await supabase
+        .from('bank_accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if ((count ?? 0) >= maxAccounts) {
+        return Response.json(
+          { error: `Limite de ${maxAccounts} conta(s) atingido no plano ${tier === 'basic' ? 'Basic' : 'Pro'}.` },
+          { status: 403 },
+        );
+      }
+    }
+  }
 
   // ── Etapa 2: Validação do arquivo ───────────────────────────
   let file: File;

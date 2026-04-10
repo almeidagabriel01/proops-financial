@@ -45,7 +45,6 @@ export async function POST(req: Request) {
     const customer = await createCustomer({
       name: profile.display_name ?? user.email ?? 'Usuário',
       email: user.email!,
-      // cpfCnpj omitted — TODO: collect via onboarding before production launch
     });
     asaasCustomerId = customer.id;
     await serviceSupabase

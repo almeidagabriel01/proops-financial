@@ -81,6 +81,20 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
+## Tech Debt — Migração Asaas → Stripe (CPF/CNPJ e plano anual)
+
+**Prioridade:** Alta (pré-launch)
+**Origem:** Auditoria QA 2026-04-10 (C-2 + M3)
+**Descrição:** Dois itens bloqueadores serão resolvidos na migração para Stripe:
+
+1. **CPF/CNPJ:** Asaas exige CPF/CNPJ para cobranças reais. A coleta desse dado não foi implementada no onboarding. Na migração para Stripe, o gateway não exige CPF/CNPJ, eliminando o problema.
+
+2. **Plano anual:** O checkout atual é hardcoded para `pro_monthly`. A tabela `PLANS` já define `pro_yearly` (R$479/ano ≈ 2 meses grátis). A UI de upgrade deve expor a opção anual. Será implementado junto com a integração Stripe.
+
+**Status:** Aguardando decisão de migração de gateway de pagamento.
+
+---
+
 ## Tech Debt — usage_count no category_dictionary
 
 **Prioridade:** Baixa
@@ -94,7 +108,7 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
-*Última atualização: 2026-04-07*
+*Última atualização: 2026-04-10*
 
 ---
 

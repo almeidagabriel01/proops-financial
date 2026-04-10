@@ -49,7 +49,7 @@ SaaS financeiro pessoal mobile-first para o Brasil. Usuários importam extratos 
 | Backend | Next.js API Routes + Supabase Edge Functions |
 | Banco | PostgreSQL via Supabase (sem ORM, RLS) |
 | Auth | Supabase Auth (email/senha + Google OAuth) |
-| IA | Claude Haiku 4.5 (batch) + Sonnet 4.6 (chat) |
+| IA | Gemini 2.0 Flash (batch/Basic) + Gemini 2.5 Flash (chat Pro) |
 | Pagamentos | Asaas (Pix + Boleto + Cartão) |
 | Deploy | Vercel + Supabase Cloud |
 
@@ -75,7 +75,7 @@ supabase gen types typescript --local > src/lib/supabase/types.ts
 3. **Verificação server-side** de plano Premium na API route — nunca confiar apenas no frontend
 4. **SHA-256 para deduplicação** de transações CSV: `hash(date + amount + normalized_description)`
 5. **LGPD desde o dia 1** — consentimento explícito, direito de exclusão implementado
-6. **Haiku para batch**, Sonnet apenas para chat interativo — controle de custo IA
+6. **Gemini Flash para batch**, Gemini Pro apenas para chat interativo — controle de custo IA
 7. **Absolute imports** com `@/` para todos os módulos internos
 
 ---
