@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
 
@@ -35,9 +35,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'audio_pro_only' }, { status: 403 });
   }
 
-  // Stub mode — OPENAI_API_KEY not configured
-  if (!process.env.OPENAI_API_KEY) {
-    console.log('[audio] stub mode — OPENAI_API_KEY not set');
+  if (!process.env.GROQ_API_KEY) {
+    console.log('[audio] stub mode — GROQ_API_KEY not set');
     return NextResponse.json({
       transcript: '[Transcrição de demonstração] Quanto gastei esse mês?',
     });
@@ -64,17 +63,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   try {
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await groq.audio.transcriptions.create({
       file,
-      model: 'whisper-1',
+      model: 'whisper-large-v3-turbo',
       language: 'pt',
+      response_format: 'json',
     });
     return NextResponse.json({ transcript: transcription.text });
   } catch (err) {
-    console.error('[audio] Whisper error:', err);
+    console.error('[audio] Groq Whisper error:', err);
     Sentry.captureException(err, {
       extra: { userId: user.id, operation: 'audio_transcription' },
     });

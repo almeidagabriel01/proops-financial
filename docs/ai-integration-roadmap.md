@@ -57,22 +57,18 @@ ANTHROPIC_API_KEY=sk-ant-xxx
 
 | Campo | Valor |
 |-------|-------|
-| **Arquivo** | `src/app/api/audio/route.ts` *(a criar no Epic 3)* |
-| **Status** | Não implementado |
+| **Arquivo** | `src/app/api/audio/route.ts` |
+| **Status** | ✅ implementado — Groq Whisper (`whisper-large-v3-turbo`) |
 | **Epic** | 3 (Premium) |
 
-**O que falta:**
-Chave para transcrição via Whisper (Groq grátis ou OpenAI pago):
+**Provider:** Groq Whisper — gratuito, sem cartão de crédito.
 
 ```bash
-# Opção 1 — Groq Whisper (gratuito, recomendado)
-GROQ_API_KEY=gsk_xxx   # mesma chave da categorização
-
-# Opção 2 — OpenAI Whisper (US$0.006/min)
-OPENAI_API_KEY=sk-xxx
+# .env.local
+GROQ_API_KEY=gsk_xxx   # console.groq.com
 ```
 
-**Impacto:** Feature de áudio bloqueada até implementar. Complemento do chat.
+**Impacto:** Feature de áudio funcional para usuários Pro com `audio_enabled=true`.
 
 ---
 
@@ -96,7 +92,7 @@ OPENAI_API_KEY=sk-xxx
 |-----------|---------|----------|-------|---------|
 | 1 | Categorização automática | Groq (llama-3.1-8b-instant) | Gratuito | Baixo — descomentar Tier 3 |
 | 2 | Chat conversacional | Claude Sonnet 4.6 | US$5 inicial | Médio — criar route + UI |
-| 3 | Entrada por áudio | Groq Whisper | Gratuito | Médio — criar route + UI |
+| 3 | Entrada por áudio | Groq Whisper | Gratuito | ✅ implementado |
 | 4 | Function calling | Claude Sonnet 4.6 | Incluso no item 2 | Alto — tool definitions |
 
 ---
