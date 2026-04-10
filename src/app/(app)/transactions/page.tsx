@@ -147,7 +147,7 @@ export default function TransactionsPage() {
           <div className="flex items-center gap-1">
             <Select value={categoryFilter || 'all'} onValueChange={handleCategoryChange}>
               <SelectTrigger className="h-9 w-44 text-xs">{categoryFilter ? (CATEGORY_CONFIG[categoryFilter as Category]?.label ?? categoryFilter) : 'Todas as categorias'}</SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60">
                 <SelectItem value="all">Todas as categorias</SelectItem>
                 {CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>{CATEGORY_CONFIG[cat as Category].label}</SelectItem>
