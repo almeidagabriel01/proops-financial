@@ -283,10 +283,11 @@ export default function TransactionsPage() {
         onMutated={refresh}
       />
 
-      {/* FAB — mobile only */}
+      {/* FAB — mobile only. Usa style para calcular bottom considerando safe area */}
       <Button
         size="lg"
-        className="fixed bottom-20 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg lg:hidden"
+        className="fixed right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg lg:hidden"
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
         aria-label="Adicionar transação"
         onClick={() => setFormOpen(true)}
       >

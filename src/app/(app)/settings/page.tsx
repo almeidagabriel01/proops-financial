@@ -614,7 +614,7 @@ export default function SettingsPage() {
                   key={tab}
                   onClick={() => handleTabChange(tab)}
                   className={cn(
-                    'flex-1 rounded-lg py-2 text-sm font-medium transition-colors',
+                    'min-h-[44px] flex-1 rounded-lg py-2 text-sm font-medium transition-colors',
                     activeTab === tab
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',

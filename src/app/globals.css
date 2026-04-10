@@ -2,6 +2,21 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * iOS Safari: previne zoom automático ao focar em inputs.
+ * O Safari faz zoom quando font-size < 16px. A regra abaixo
+ * força 16px apenas em dispositivos touch, sem afetar desktop.
+ * eslint-disable: esta regra usa !important propositalmente para
+ * sobrescrever as classes Tailwind (text-sm, text-xs, etc.)
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+  select,
+  textarea {
+    font-size: 16px !important; /* noqa: min 16px to prevent iOS zoom */
+  }
+}
+
 @keyframes pop-in {
   0% { transform: scale(0.5); opacity: 0; }
   80% { transform: scale(1.1); }

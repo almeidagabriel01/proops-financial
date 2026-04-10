@@ -28,12 +28,13 @@ export function FloatingChatButton() {
       <button
         onClick={handleClick}
         aria-label={panelOpen ? 'Fechar assistente' : 'Abrir assistente financeiro'}
+        style={!isDesktop ? { bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
         className={cn(
           'fixed z-40 flex h-12 w-12 items-center justify-center rounded-full',
           'bg-primary text-primary-foreground shadow-lg',
           'transition-all duration-300 ease-in-out',
-          // Mobile: above bottom nav
-          'bottom-20 right-4',
+          // Mobile: safe area via inline style acima
+          'right-4',
           // Desktop: closer to edge
           'lg:bottom-6 lg:right-6',
           // Hover only when visible

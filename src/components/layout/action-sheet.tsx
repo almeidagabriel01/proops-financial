@@ -72,7 +72,11 @@ export function ActionSheet({
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+      <SheetContent
+        side="bottom"
+        className="rounded-t-2xl"
+        style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <div className="flex items-center justify-between pb-2 pt-1">
           <span className="text-base font-semibold">O que deseja fazer?</span>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
@@ -115,16 +119,25 @@ export function FabButton({ className }: { className?: string }) {
 
   return (
     <>
+      {/*
+       * h-16 garante que o FAB ocupa exatamente o mesmo espaço que as abas
+       * no flex layout do bottom-nav, evitando desalinhamento quando o
+       * ActionSheet abre. O círculo é posicionado com `absolute` para
+       * flutuar acima da barra, independente do layout flow.
+       */}
       <button
         type="button"
-        className={cn('flex -translate-y-3 flex-col items-center', className)}
+        className={cn(
+          'relative flex h-16 min-w-[60px] flex-col items-center justify-end overflow-visible pb-1.5',
+          className,
+        )}
         onClick={() => setOpen(true)}
         aria-label="Nova ação financeira"
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg">
+        <span className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[40%] flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg">
           <Plus className="h-6 w-6 text-primary-foreground" />
         </span>
-        <span className="mt-1 text-[10px] font-medium text-primary">Novo</span>
+        <span className="text-[10px] font-medium text-primary">Novo</span>
       </button>
 
       <ActionSheet open={open} onClose={() => setOpen(false)} />

@@ -222,7 +222,11 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
-      <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-8">
+      <SheetContent
+        side="bottom"
+        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4"
+        style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <SheetHeader className="pb-4 pt-2">
           <SheetTitle>{isEdit ? 'Editar transação' : 'Nova transação'}</SheetTitle>
         </SheetHeader>
@@ -233,7 +237,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             <button
               type="button"
               onClick={() => setValues((v) => ({ ...v, type: 'debit' }))}
-              className={`rounded-lg py-2 text-sm font-medium transition-colors ${
+              className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
                 values.type === 'debit'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'
@@ -244,7 +248,7 @@ export function TransactionForm({ open, onClose, onSuccess, transaction }: Trans
             <button
               type="button"
               onClick={() => setValues((v) => ({ ...v, type: 'credit' }))}
-              className={`rounded-lg py-2 text-sm font-medium transition-colors ${
+              className={`min-h-[44px] rounded-lg py-2 text-sm font-medium transition-colors ${
                 values.type === 'credit'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'
