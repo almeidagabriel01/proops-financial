@@ -10,18 +10,29 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { TransactionList } from '@/components/transactions/transaction-list';
 import { TransactionForm } from '@/components/transactions/transaction-form';
 import { useTransactions } from '@/hooks/use-transactions';
 import { getMonthBounds, getPrevMonthBounds } from '@/lib/utils/format';
 import { CATEGORIES } from '@/lib/billing/plans';
+import { DatePicker } from '@/components/ui/date-picker';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import type { Category } from '@/lib/billing/plans';
 
 type PeriodKey = 'current' | 'previous' | 'custom';
 type TypeFilter = 'all' | 'credit' | 'debit';
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+  current: 'Mês atual',
+  previous: 'Mês anterior',
+  custom: 'Personalizado',
+};
+const TYPE_LABELS: Record<TypeFilter, string> = {
+  all: 'Todos',
+  credit: 'Receitas',
+  debit: 'Despesas',
+};
 
 const VALID_PERIODS: PeriodKey[] = ['current', 'previous', 'custom'];
 const VALID_TYPES: TypeFilter[] = ['all', 'credit', 'debit'];
@@ -143,39 +154,86 @@ export default function TransactionsPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   return (
-    <div className="flex flex-col">
-      {/* Filter bar (AC2) */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="space-y-2">
-          {/* Search (AC3) */}
+    <div className="flex w-full flex-col overflow-hidden">
+      {/* Desktop hero header */}
+      <div className="hidden lg:flex items-center justify-between shrink-0 px-8 pt-6 pb-3">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Transações</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {transactions.length > 0 ? `${transactions.length} transações encontradas` : 'Gerencie suas movimentações'}
+          </p>
+        </div>
+        <Button className="gap-2" onClick={() => setFormOpen(true)}>
+          <Plus className="h-4 w-4" /> Nova transação
+        </Button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-8">
+        {/* Desktop: uma linha só */}
+        <div className="hidden lg:flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input type="search" placeholder="Buscar..." className="pl-9 h-9 text-sm" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+          </div>
+          <Select value={period} onValueChange={handlePeriodChange}>
+            <SelectTrigger className="h-9 w-40 text-xs">{PERIOD_LABELS[period]}</SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current">Mês atual</SelectItem>
+              <SelectItem value="previous">Mês anterior</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={handleTypeChange}>
+            <SelectTrigger className="h-9 w-32 text-xs">{TYPE_LABELS[typeFilter]}</SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="credit">Receitas</SelectItem>
+              <SelectItem value="debit">Despesas</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
+            <Select value={categoryFilter || 'all'} onValueChange={handleCategoryChange}>
+              <SelectTrigger className="h-9 w-44 text-xs">{categoryFilter ? (CATEGORY_CONFIG[categoryFilter as Category]?.label ?? categoryFilter) : 'Todas as categorias'}</SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{CATEGORY_CONFIG[cat as Category].label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {categoryFilter && (
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" aria-label="Limpar categoria" onClick={() => handleCategoryChange('all')}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          {period === 'custom' && (
+            <>
+              <DatePicker value={customStart} onChange={handleCustomStartChange} max={customEnd || undefined} placeholder="Data inicial" className="w-36" />
+              <span className="text-xs text-muted-foreground">até</span>
+              <DatePicker value={customEnd} onChange={handleCustomEndChange} min={customStart || undefined} placeholder="Data final" className="w-36" />
+            </>
+          )}
+        </div>
+
+        {/* Mobile: stacked */}
+        <div className="space-y-2 lg:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar por descrição..."
-              className="pl-9"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
+            <Input type="search" placeholder="Buscar por descrição..." className="pl-9" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
-
-          {/* Period + Type filters */}
           <div className="flex gap-2">
             <Select value={period} onValueChange={handlePeriodChange}>
-              <SelectTrigger className="h-9 flex-1 text-xs">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="h-9 flex-1 text-xs">{PERIOD_LABELS[period]}</SelectTrigger>
               <SelectContent>
                 <SelectItem value="current">Mês atual</SelectItem>
                 <SelectItem value="previous">Mês anterior</SelectItem>
                 <SelectItem value="custom">Personalizado</SelectItem>
               </SelectContent>
             </Select>
-
             <Select value={typeFilter} onValueChange={handleTypeChange}>
-              <SelectTrigger className="h-9 flex-1 text-xs">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="h-9 flex-1 text-xs">{TYPE_LABELS[typeFilter]}</SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="credit">Receitas</SelectItem>
@@ -183,67 +241,37 @@ export default function TransactionsPage() {
               </SelectContent>
             </Select>
           </div>
-
-          {/* Category filter */}
           <div className="flex items-center gap-2">
-            <Select
-              value={categoryFilter || 'all'}
-              onValueChange={handleCategoryChange}
-            >
-              <SelectTrigger className="h-9 flex-1 text-xs">
-                <SelectValue placeholder="Por categoria" />
-              </SelectTrigger>
+            <Select value={categoryFilter || 'all'} onValueChange={handleCategoryChange}>
+              <SelectTrigger className="h-9 flex-1 text-xs">{categoryFilter ? (CATEGORY_CONFIG[categoryFilter as Category]?.label ?? categoryFilter) : 'Por categoria'}</SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as categorias</SelectItem>
                 {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {CATEGORY_CONFIG[cat as Category].label}
-                  </SelectItem>
+                  <SelectItem key={cat} value={cat}>{CATEGORY_CONFIG[cat as Category].label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {categoryFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 w-9 p-0 shrink-0"
-                aria-label="Limpar filtro de categoria"
-                onClick={() => handleCategoryChange('all')}
-              >
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" aria-label="Limpar filtro de categoria" onClick={() => handleCategoryChange('all')}>
                 <X className="h-4 w-4" />
               </Button>
             )}
           </div>
-
-          {/* Custom date range (AC2) — shown only when period === 'custom' */}
           {period === 'custom' && (
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="mb-1 block text-[10px] text-muted-foreground">De</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => handleCustomStartChange(e.target.value)}
-                  max={customEnd || undefined}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <input type="date" value={customStart} onChange={(e) => handleCustomStartChange(e.target.value)} max={customEnd || undefined} className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer" />
               </div>
               <div className="flex-1">
                 <label className="mb-1 block text-[10px] text-muted-foreground">Até</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => handleCustomEndChange(e.target.value)}
-                  min={customStart || undefined}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <input type="date" value={customEnd} onChange={(e) => handleCustomEndChange(e.target.value)} min={customStart || undefined} className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer" />
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Transaction list */}
       <TransactionList
         transactions={transactions}
         isLoading={isLoading}
@@ -255,10 +283,10 @@ export default function TransactionsPage() {
         onMutated={refresh}
       />
 
-      {/* FAB — add transaction */}
+      {/* FAB — mobile only */}
       <Button
         size="lg"
-        className="fixed bottom-20 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg"
+        className="fixed bottom-20 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-lg lg:hidden"
         aria-label="Adicionar transação"
         onClick={() => setFormOpen(true)}
       >

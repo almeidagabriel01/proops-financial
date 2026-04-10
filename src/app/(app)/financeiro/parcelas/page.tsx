@@ -21,7 +21,7 @@ export default function ParcelasPage() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h1 className="text-lg font-semibold">Parcelas</h1>
+        <h1 className="text-lg font-semibold lg:text-2xl lg:font-bold">Parcelas</h1>
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-32 w-full rounded-xl" />
         ))}
@@ -32,7 +32,7 @@ export default function ParcelasPage() {
   if (error) {
     return (
       <div className="space-y-3">
-        <h1 className="text-lg font-semibold">Parcelas</h1>
+        <h1 className="text-lg font-semibold lg:text-2xl lg:font-bold">Parcelas</h1>
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
@@ -42,9 +42,22 @@ export default function ParcelasPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Desktop hero */}
+      <div className="hidden lg:block">
+        <h1 className="text-2xl font-bold text-foreground">Parcelas</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {data.length === 0
+            ? 'Compras parceladas detectadas automaticamente na importação'
+            : `${data.length} grupo${data.length !== 1 ? 's' : ''} de parcelas`}
+        </p>
+      </div>
+
+      {/* Mobile header */}
+      <div className="flex items-center justify-between lg:hidden">
         <h1 className="text-lg font-semibold">Parcelas</h1>
-        <span className="text-sm text-muted-foreground">{data.length} grupo{data.length !== 1 ? 's' : ''}</span>
+        <span className="text-sm text-muted-foreground">
+          {data.length} grupo{data.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {data.length === 0 ? (
@@ -57,13 +70,17 @@ export default function ParcelasPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
           {data.map((group) => (
-            <InstallmentGroupCard
+            <div
               key={group.id}
-              group={group}
-              onDelete={(id) => void handleDelete(id)}
-            />
+              className="lg:shadow-[var(--shadow-elevated)] lg:hover:shadow-[var(--shadow-float)] lg:hover:-translate-y-0.5 lg:transition-all lg:rounded-xl"
+            >
+              <InstallmentGroupCard
+                group={group}
+                onDelete={(id) => void handleDelete(id)}
+              />
+            </div>
           ))}
         </div>
       )}

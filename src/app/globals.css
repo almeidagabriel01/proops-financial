@@ -14,6 +14,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-float: var(--shadow-float);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -58,6 +61,9 @@
 }
 
 :root {
+  --shadow-card: 0 1px 3px oklch(0 0 0 / 5%);
+  --shadow-elevated: 0 4px 12px oklch(0 0 0 / 8%);
+  --shadow-float: 0 8px 32px oklch(0 0 0 / 12%);
   --background: oklch(0.985 0.002 240);
   --foreground: oklch(0.15 0.015 240);
   --card: oklch(1 0 0);
@@ -93,6 +99,9 @@
 }
 
 .dark {
+  --shadow-card: 0 1px 3px oklch(0 0 0 / 20%);
+  --shadow-elevated: 0 4px 12px oklch(0 0 0 / 30%);
+  --shadow-float: 0 8px 32px oklch(0 0 0 / 40%);
   --background: oklch(0.13 0.015 240);
   --foreground: oklch(0.95 0.005 240);
   --card: oklch(0.18 0.015 240);
@@ -136,4 +145,36 @@
   html {
     @apply font-sans;
   }
+  /* Cursor pointer universal para todos os elementos interativos */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  select:not(:disabled),
+  a[href],
+  summary {
+    cursor: pointer;
+  }
+}
+
+/* Transição suave ao trocar o tema — ativada via classe .transitioning (fallback) */
+html.transitioning,
+html.transitioning *,
+html.transitioning *::before,
+html.transitioning *::after {
+  transition:
+    background-color 0.3s ease,
+    color 0.2s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease !important;
+}
+
+/* View Transitions API — circular reveal do theme toggle */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
 }

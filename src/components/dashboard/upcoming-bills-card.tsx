@@ -29,7 +29,7 @@ export function UpcomingBillsCard({ bills, daysAhead = 7 }: UpcomingBillsCardPro
     .reduce((s, b) => s + b.amount, 0);
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-2 pt-4">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <CalendarClock className="h-4 w-4 text-primary" />

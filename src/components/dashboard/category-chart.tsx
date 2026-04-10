@@ -1,6 +1,5 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency } from '@/lib/utils/format';
@@ -11,66 +10,56 @@ interface CategoryChartProps {
   data: CategoryData[];
 }
 
-function CustomTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload: CategoryData }>;
-}) {
-  if (!active || !payload?.length) return null;
-  const entry = payload[0].payload;
-  const config = CATEGORY_CONFIG[entry.category as Category] ?? CATEGORY_CONFIG.outros;
-  return (
-    <div className="rounded-lg border border-border bg-card p-3 shadow-md">
-      <p className="text-xs font-medium text-foreground">{config.label}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{formatCurrency(entry.total)}</p>
-      <p className="text-xs text-muted-foreground">{entry.percentage}% do total</p>
-    </div>
-  );
-}
-
 export function CategoryChart({ data }: CategoryChartProps) {
   if (!data.length) return null;
 
-  const chartData = data.map((d) => ({
-    ...d,
-    fill: CATEGORY_CONFIG[d.category as Category]?.color ?? '#9ca3af',
-    name: CATEGORY_CONFIG[d.category as Category]?.label ?? d.category,
-  }));
+  const top5 = data.slice(0, 5);
+  const maxVal = top5[0]?.total ?? 1;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          Distribuição por categoria
+    <Card className="lg:shadow-[var(--shadow-elevated)]">
+      <CardHeader className="pb-3 pt-4">
+        <CardTitle className="text-base font-semibold text-foreground">
+          Distribuição de Gastos
         </CardTitle>
+        <p className="text-xs text-muted-foreground">Top {top5.length} categorias do período</p>
       </CardHeader>
-      <CardContent className="px-2 pb-4">
-        <ResponsiveContainer width="100%" height={240}>
-          <PieChart>
-            <Pie
-              data={chartData}
-              dataKey="total"
-              cx="50%"
-              cy="50%"
-              innerRadius={55}
-              outerRadius={85}
-              paddingAngle={2}
-            >
-              {chartData.map((entry) => (
-                <Cell key={entry.category} fill={entry.fill} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              formatter={(value) => (
-                <span className="text-xs text-foreground">{value}</span>
-              )}
-              iconSize={10}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+      <CardContent className="space-y-4 pb-4">
+        {top5.map((d) => {
+          const config = CATEGORY_CONFIG[d.category as Category] ?? CATEGORY_CONFIG.outros;
+          const Icon = config.icon;
+          const barPct = Math.round((d.total / maxVal) * 100);
+
+          return (
+            <div key={d.category} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+                    style={{ background: `${config.color}22` }}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: config.color }} />
+                  </div>
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {config.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] text-muted-foreground">{d.percentage}%</span>
+                  <span className="text-xs font-semibold text-foreground tabular-nums">
+                    {formatCurrency(d.total)}
+                  </span>
+                </div>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${barPct}%`, background: config.color }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );

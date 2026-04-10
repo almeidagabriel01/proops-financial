@@ -3,74 +3,55 @@ import { createClient } from '@/lib/supabase/server';
 import { SummaryCards } from '@/components/dashboard/summary-cards';
 import { SpendingBreakdown } from '@/components/dashboard/spending-breakdown';
 import { CategoryCards } from '@/components/dashboard/category-cards';
-import { PeriodSelector } from '@/components/dashboard/period-selector';
+import { MonthPicker } from '@/components/dashboard/month-picker';
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state';
-// Charts loaded via client-side lazy wrapper (ssr:false requires Client Component)
 import { SpendingChartLazy as SpendingChart, CategoryChartLazy as CategoryChart } from '@/components/dashboard/charts-lazy';
-import { Loader2 } from 'lucide-react';
-import {
-  getMonthBounds,
-  getPrevMonthBounds,
-  groupByWeek,
-} from '@/lib/utils/format';
-import {
-  aggregateByCategory,
-  buildCategoryBreakdown,
-} from '@/lib/utils/category-aggregation';
+import { Loader2, TrendingDown } from 'lucide-react';
+import { getMonthBounds, groupByWeek, formatCurrency } from '@/lib/utils/format';
+import { aggregateByCategory, buildCategoryBreakdown } from '@/lib/utils/category-aggregation';
 import { UpcomingBillsCard, type UpcomingBill } from '@/components/dashboard/upcoming-bills-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
-type Period = 'current' | 'previous';
-
-function getPeriodBounds(period: Period): { start: string; end: string } {
-  if (period === 'previous') return getPrevMonthBounds();
-  return getMonthBounds();
-}
-
-function getComparisonBounds(period: Period): { start: string; end: string } {
-  if (period === 'previous') {
-    const now = new Date();
-    return getMonthBounds(new Date(now.getFullYear(), now.getMonth() - 2, 1));
-  }
-  return getPrevMonthBounds();
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ month?: string }>;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const params = await searchParams;
-  const period = (params.period === 'previous' ? 'previous' : 'current') as Period;
-  const { start, end } = getPeriodBounds(period);
-  const compBounds = getComparisonBounds(period);
+  const monthParam = params.month; // "YYYY-MM" or undefined
 
   const now = new Date();
-  const periodLabel =
-    period === 'previous'
-      ? new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('pt-BR', {
-          month: 'long',
-          year: 'numeric',
-        })
-      : now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  // Upcoming bills: next 7 days + overdue
+  // Resolve target date from ?month=YYYY-MM param
+  const targetDate =
+    monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+      ? new Date(`${monthParam}-15T12:00:00`)
+      : new Date(now.getFullYear(), now.getMonth(), 15);
+
+  const isCurrentMonth =
+    targetDate.getFullYear() === now.getFullYear() &&
+    targetDate.getMonth() === now.getMonth();
+
+  const { start, end } = getMonthBounds(targetDate);
+  const prevDate = new Date(targetDate.getFullYear(), targetDate.getMonth() - 1, 1);
+  const compBounds = getMonthBounds(prevDate);
+
+  const periodLabel = targetDate
+    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    .replace(/^\w/, (c) => c.toUpperCase());
+
+  // Upcoming bills: next 7 days + overdue last 30 days
   const sevenDaysAhead = new Date();
   sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
   const upcomingTo = sevenDaysAhead.toISOString().slice(0, 10);
   const upcomingFrom = new Date();
-  upcomingFrom.setDate(upcomingFrom.getDate() - 30); // include overdue from last 30 days
-  const upcomingFromStr = upcomingFrom.toISOString().slice(0, 10);
+  upcomingFrom.setDate(upcomingFrom.getDate() - 30);
 
-  // Parallel fetch: current period + comparison period + pending count + upcoming bills
   const [currentResult, compResult, pendingResult, upcomingResult] = await Promise.all([
     supabase
       .from('transactions')
@@ -94,7 +75,7 @@ export default async function DashboardPage({
       .from('scheduled_transactions')
       .select('id, description, amount, type, due_date, status, category')
       .eq('user_id', user.id)
-      .gte('due_date', upcomingFromStr)
+      .gte('due_date', upcomingFrom.toISOString().slice(0, 10))
       .lte('due_date', upcomingTo)
       .in('status', ['pending', 'overdue'])
       .order('due_date', { ascending: true })
@@ -103,68 +84,199 @@ export default async function DashboardPage({
 
   const upcomingBills = ((upcomingResult as { data?: unknown[] }).data ?? []) as UpcomingBill[];
   const rows = currentResult.data ?? [];
+  const compRows = compResult.data ?? [];
+
   const income = rows.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
-  const expenses = rows
-    .filter((t) => t.type === 'debit')
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
+  const expenses = rows.filter((t) => t.type === 'debit').reduce((s, t) => s + Math.abs(t.amount), 0);
   const balance = income - expenses;
+
+  const prevIncome = compRows.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+  const prevExpenses = compRows.filter((t) => t.type === 'debit').reduce((s, t) => s + Math.abs(t.amount), 0);
+  const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
+
+  // Month progress (current month only)
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
+  const daysRemaining = daysInMonth - dayOfMonth;
+  const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
+  const dailyAvg = dayOfMonth > 0 ? expenses / dayOfMonth : 0;
+  const projectedExpenses = Math.round(expenses + dailyAvg * daysRemaining);
+  const upcomingDebit = upcomingBills.filter((b) => b.type === 'debit').reduce((s, b) => s + b.amount, 0);
+
   const weeklyData = groupByWeek(rows);
   const hasData = rows.length > 0;
   const hasPending = (pendingResult.count ?? 0) > 0;
 
   const currentCats = aggregateByCategory(rows);
-  const compCats = aggregateByCategory(compResult.data ?? []);
-  const hasPrevData = (compResult.data ?? []).some((t) => t.type === 'debit');
+  const compCats = aggregateByCategory(compRows);
+  const hasPrevData = compRows.some((t) => t.type === 'debit');
   const categoryBreakdown = buildCategoryBreakdown(currentCats, compCats, hasPrevData);
 
   return (
-    <div className="mx-auto max-w-screen-lg space-y-4 px-4 py-4">
-      {/* Header + period selector */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold capitalize text-foreground">{periodLabel}</h1>
-          <p className="text-sm text-muted-foreground">Resumo financeiro</p>
+    <div className="h-full overflow-y-auto">
+      <div className="flex w-full flex-col gap-5 px-4 py-4 pb-24 lg:px-8 lg:py-6 lg:pb-28">
+
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-foreground lg:text-3xl">{periodLabel}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">Resumo financeiro</p>
+          </div>
+          <MonthPicker />
         </div>
-        <PeriodSelector />
-      </div>
 
-      {/* Pending categorization indicator */}
-      {hasPending && (
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Categorizando suas transações...</p>
-        </div>
-      )}
+        {/* ── Categorização pendente ──────────────────────────────── */}
+        {hasPending && (
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Categorizando suas transações...</p>
+          </div>
+        )}
 
-      {/* Upcoming bills (overdue + next 7 days) */}
-      {upcomingBills.length > 0 && (
-        <UpcomingBillsCard bills={upcomingBills} daysAhead={7} />
-      )}
+        {hasData ? (
+          <>
+            {/* ── Summary cards ─────────────────────────────────────── */}
+            <SummaryCards
+              income={income}
+              expenses={expenses}
+              balance={balance}
+              prevIncome={prevIncome}
+              prevExpenses={prevExpenses}
+              savingsRate={savingsRate}
+            />
 
-      {hasData ? (
-        <>
-          <SummaryCards income={income} expenses={expenses} balance={balance} />
+            {/* ── Progresso do mês (somente mês atual) ──────────────── */}
+            {isCurrentMonth && (
+              <div className="rounded-xl border border-border bg-card p-4 lg:shadow-[var(--shadow-elevated)] lg:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Progresso do Mês</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Dia {dayOfMonth} de {daysInMonth} · {daysRemaining} dias restantes
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+                      Projeção:{' '}
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(projectedExpenses)}
+                      </span>
+                    </span>
+                    {upcomingDebit > 0 && (
+                      <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                        +{formatCurrency(upcomingDebit)} agendado
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2.5">
+                  <div>
+                    <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                      <span>Tempo decorrido</span>
+                      <span className="font-medium">{monthProgress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
+                      <div
+                        className="h-full rounded-full bg-primary/50 transition-all"
+                        style={{ width: `${monthProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                  {income > 0 && (
+                    <div>
+                      <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                        <span>Gastos vs receita</span>
+                        <span
+                          className={
+                            expenses / income > monthProgress / 100 + 0.05
+                              ? 'font-semibold text-red-500'
+                              : 'font-medium text-green-600 dark:text-green-400'
+                          }
+                        >
+                          {Math.min(Math.round((expenses / income) * 100), 100)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            expenses / income > monthProgress / 100 + 0.05
+                              ? 'bg-red-500'
+                              : 'bg-green-500 dark:bg-green-400'
+                          }`}
+                          style={{
+                            width: `${Math.min(Math.round((expenses / income) * 100), 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-          {/* Weekly spending chart */}
-          {weeklyData.length > 0 && <SpendingChart data={weeklyData} />}
+            {/* ── DESKTOP LAYOUT ─────────────────────────────────────── */}
+            <div className="hidden lg:flex lg:flex-col lg:gap-5">
+              {/* Charts: 2-col com alturas iguais */}
+              {(weeklyData.length > 0 || currentCats.length > 0) && (
+                <div className="grid grid-cols-2 gap-5">
+                  <SpendingChart data={weeklyData} />
+                  <CategoryChart data={currentCats} />
+                </div>
+              )}
 
-          {/* Category breakdown — only when there are debit transactions */}
-          {currentCats.length > 0 ? (
-            <>
-              <CategoryChart data={currentCats} />
-              <SpendingBreakdown data={currentCats} />
-              <CategoryCards data={categoryBreakdown} />
-            </>
-          ) : (
-            <div className="py-8 text-center text-muted-foreground">
-              <p className="text-sm">Nenhum gasto categorizado neste período.</p>
-              <p className="mt-1 text-xs">Importe um extrato ou adicione uma despesa.</p>
+              {/* Breakdown: adaptive grid based on available content */}
+              {(() => {
+                const showCats = categoryBreakdown.length >= 2;
+                const showUpcoming = upcomingBills.length > 0;
+                const cols = showCats && showUpcoming
+                  ? 'grid-cols-[1fr_1fr_280px]'
+                  : showCats
+                    ? 'grid-cols-2'
+                    : showUpcoming
+                      ? 'grid-cols-[1fr_280px]'
+                      : 'grid-cols-1';
+                return (
+                  <div className={`grid gap-5 items-stretch ${cols}`}>
+                    <SpendingBreakdown data={currentCats} />
+                    {showCats && <CategoryCards data={categoryBreakdown} />}
+                    {showUpcoming && <UpcomingBillsCard bills={upcomingBills} daysAhead={7} />}
+                  </div>
+                );
+              })()}
             </div>
-          )}
-        </>
-      ) : (
-        <DashboardEmptyState />
-      )}
+
+            {/* ── MOBILE LAYOUT ─────────────────────────────────────── */}
+            <div className="flex flex-col gap-4 lg:hidden">
+              {upcomingBills.length > 0 && (
+                <UpcomingBillsCard bills={upcomingBills} daysAhead={7} />
+              )}
+              {weeklyData.length > 0 && <SpendingChart data={weeklyData} />}
+              {currentCats.length > 0 && (
+                <>
+                  <CategoryChart data={currentCats} />
+                  <SpendingBreakdown data={currentCats} />
+                  <CategoryCards data={categoryBreakdown} />
+                </>
+              )}
+            </div>
+
+            {/* Empty state when categorized but no expenses */}
+            {currentCats.length === 0 && (
+              <div className="rounded-xl border border-border bg-muted/20 py-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Nenhum gasto categorizado neste período.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Importe um extrato ou adicione uma despesa.
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <DashboardEmptyState />
+        )}
+      </div>
     </div>
   );
 }

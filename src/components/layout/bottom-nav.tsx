@@ -14,11 +14,11 @@ const tabs = [
   { href: '/more', icon: MoreHorizontal, label: 'Mais' },
 ];
 
-export function BottomNav() {
+export function BottomNav({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card">
+    <nav className={cn("fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card", className)}>
       <div className="mx-auto flex max-w-screen-lg items-center justify-around">
         {/* Tabs antes do FAB */}
         {tabs.slice(0, 2).map((tab) => {

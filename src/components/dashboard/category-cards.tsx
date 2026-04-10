@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency } from '@/lib/utils/format';
 import type { Category } from '@/lib/billing/plans';
@@ -40,7 +41,10 @@ export function CategoryCards({ data }: CategoryCardsProps) {
   if (!data.length) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className={cn(
+      'grid gap-3',
+      data.length === 1 ? 'grid-cols-1' : data.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3',
+    )}>
       {data.map((item) => {
         const config = CATEGORY_CONFIG[item.category as Category] ?? CATEGORY_CONFIG.outros;
         const Icon = config.icon;

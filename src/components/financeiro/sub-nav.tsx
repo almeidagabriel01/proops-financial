@@ -16,7 +16,7 @@ export function FinanceiroSubNav() {
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="flex overflow-x-auto px-4 scrollbar-none">
+      <div className="flex overflow-x-auto px-4 scrollbar-none lg:px-8 lg:gap-2">
         {subTabs.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
           return (

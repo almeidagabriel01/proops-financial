@@ -7,6 +7,7 @@ import { ImportProgress, type ImportStatus } from '@/components/import/import-pr
 import { Button } from '@/components/ui/button';
 import { usePlan } from '@/hooks/use-plan';
 import { PaywallModal } from '@/components/layout/paywall-modal';
+import { cn } from '@/lib/utils';
 
 const BANK_OPTIONS = [
   { value: 'Nubank', label: 'Nubank' },
@@ -14,6 +15,8 @@ const BANK_OPTIONS = [
   { value: 'Bradesco', label: 'Bradesco' },
   { value: 'Outro', label: 'Outro' },
 ];
+
+const STEPS = ['Escolher banco', 'Selecionar arquivo', 'Importar'];
 
 // Polling fallback: starts after this delay if Realtime hasn't fired
 const REALTIME_TIMEOUT_MS = 6000;
@@ -34,9 +37,11 @@ export default function ImportPage() {
 
   const { isBasic, maxBankAccounts } = usePlan();
 
-  // Stable client ref — prevents useEffect dependency churn on re-renders
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+
+  // Current step derived from state
+  const currentStep = !selectedFile ? 0 : !importStatus ? 1 : 2;
 
   // Realtime subscription for import status updates
   useEffect(() => {
@@ -71,8 +76,7 @@ export default function ImportPage() {
     };
   }, [importId, supabase]);
 
-  // Polling fallback: if Realtime doesn't fire within REALTIME_TIMEOUT_MS,
-  // poll the DB every POLL_INTERVAL_MS until status leaves 'categorizing'
+  // Polling fallback
   useEffect(() => {
     if (importStatus !== 'categorizing' || !importId) return;
 
@@ -109,7 +113,6 @@ export default function ImportPage() {
         if (maxPollTimeout) clearTimeout(maxPollTimeout);
       }, POLL_INTERVAL_MS);
 
-      // Safety net: if Edge Function never updates status, fail gracefully
       maxPollTimeout = setTimeout(() => {
         if (pollInterval) clearInterval(pollInterval);
         setImportStatus('failed');
@@ -129,7 +132,6 @@ export default function ImportPage() {
   const handleImport = useCallback(async () => {
     if (!selectedFile) return;
 
-    // AC4: Enforce bank account limit for Basic plan
     if (isBasic) {
       const { count } = await supabase
         .from('bank_accounts')
@@ -190,88 +192,177 @@ export default function ImportPage() {
     importStatus === 'categorizing';
 
   return (
-    <div className="mx-auto max-w-screen-sm px-4 py-6">
-      <PaywallModal
-        open={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        feature="accounts"
-      />
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-foreground">Importar Extrato</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Envie o extrato do seu banco em formato OFX ou CSV
-        </p>
-      </div>
+    <div className="h-full overflow-y-auto">
+      <div className="w-full px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-28">
+        <PaywallModal open={paywallOpen} onClose={() => setPaywallOpen(false)} feature="accounts" />
 
-      {importStatus === 'completed' ? (
-        <div className="rounded-xl border border-border bg-card p-6">
-          <ImportProgress
-            status="completed"
-            transactionCount={transactionCount}
-            duplicatesSkipped={duplicatesSkipped}
-          />
-          <div className="mt-4 flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={handleReset}>
-              Importar outro extrato
-            </Button>
-            <Button className="flex-1" onClick={() => (window.location.href = '/dashboard')}>
-              Ver dashboard
-            </Button>
-          </div>
+        {/* Desktop hero */}
+        <div className="hidden lg:block mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Importar Extrato</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Envie o extrato do seu banco em formato OFX ou CSV
+          </p>
         </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {/* Bank selector */}
-          <div>
-            <label htmlFor="bank-select" className="mb-1.5 block text-sm font-medium text-foreground">
-              Banco
-            </label>
-            <select
-              id="bank-select"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              disabled={isProcessing}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {BANK_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* File dropzone */}
-          <FileDropzone onFileSelect={setSelectedFile} disabled={isProcessing} />
+        {/* Mobile title */}
+        <div className="mb-6 lg:hidden">
+          <h1 className="text-xl font-bold text-foreground">Importar Extrato</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Envie o extrato do seu banco em formato OFX ou CSV
+          </p>
+        </div>
 
-          {/* Progress indicator */}
-          {importStatus && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <ImportProgress
-                status={importStatus}
-                errorMessage={errorMessage}
-              />
-              {importStatus === 'failed' && (
-                <div className="mt-3 flex justify-center">
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    Tentar novamente
-                  </Button>
-                </div>
+        {/* Desktop step wizard */}
+        <div className="mb-8 hidden lg:flex items-center gap-0">
+          {STEPS.map((step, i) => (
+            <div key={i} className="flex items-center">
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  currentStep > i
+                    ? 'text-primary'
+                    : currentStep === i
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold',
+                    currentStep > i
+                      ? 'bg-primary/20 text-primary'
+                      : currentStep === i
+                        ? 'bg-white/30 text-white'
+                        : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {currentStep > i ? '✓' : i + 1}
+                </span>
+                {step}
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={cn('h-px w-8', currentStep > i ? 'bg-primary' : 'bg-border')} />
               )}
             </div>
-          )}
-
-          {/* Import button */}
-          <Button
-            onClick={handleImport}
-            disabled={!selectedFile || isProcessing || isSubmitting}
-            className="w-full"
-            size="lg"
-          >
-            {isSubmitting ? 'Enviando...' : 'Importar'}
-          </Button>
+          ))}
         </div>
-      )}
+
+        {importStatus === 'completed' ? (
+          <div className="rounded-xl border border-border bg-card p-6 lg:max-w-xl">
+            <ImportProgress
+              status="completed"
+              transactionCount={transactionCount}
+              duplicatesSkipped={duplicatesSkipped}
+            />
+            <div className="mt-4 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={handleReset}>
+                Importar outro extrato
+              </Button>
+              <Button className="flex-1" onClick={() => (window.location.href = '/dashboard')}>
+                Ver dashboard
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* Desktop: dois painéis | Mobile: coluna única */
+          <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:items-start">
+            {/* Coluna esquerda: form */}
+            <div className="flex flex-col gap-4">
+              <div>
+                <label
+                  htmlFor="bank-select"
+                  className="mb-1.5 block text-sm font-medium text-foreground"
+                >
+                  Banco
+                </label>
+                <select
+                  id="bank-select"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  disabled={isProcessing}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {BANK_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <FileDropzone onFileSelect={setSelectedFile} disabled={isProcessing} />
+
+              {importStatus && (
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <ImportProgress status={importStatus} errorMessage={errorMessage} />
+                  {importStatus === 'failed' && (
+                    <div className="mt-3 flex justify-center">
+                      <Button variant="outline" size="sm" onClick={handleReset}>
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={handleImport}
+                disabled={!selectedFile || isProcessing || isSubmitting}
+                className="w-full"
+                size="lg"
+              >
+                {isSubmitting ? 'Enviando...' : 'Importar'}
+              </Button>
+            </div>
+
+            {/* Coluna direita: instruções (desktop only) */}
+            <div className="hidden lg:block space-y-4">
+              <div className="rounded-xl border border-border bg-muted/30 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Bancos suportados</p>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    <strong className="text-foreground">Nubank</strong> — CSV exportado do app
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    <strong className="text-foreground">Itaú</strong> — OFX via internet banking
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    <strong className="text-foreground">Bradesco</strong> — CSV ou OFX
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                    Qualquer banco que exporte OFX
+                  </li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Como funciona</p>
+                <ol className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-bold text-primary">1.</span>
+                    Selecione o banco e faça upload do extrato
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-bold text-primary">2.</span>
+                    A IA categoriza automaticamente cada transação
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-bold text-primary">3.</span>
+                    Visualize no dashboard em segundos
+                  </li>
+                </ol>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Transações duplicadas são detectadas e ignoradas automaticamente.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

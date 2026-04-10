@@ -1,12 +1,6 @@
 import { redirect } from 'next/navigation';
-import { Toaster } from 'sonner';
 import { createClient } from '@/lib/supabase/server';
-import { LogoutButton } from '@/components/logout-button';
-import { BottomNav } from '@/components/layout/bottom-nav';
-import { TrialBanner } from '@/components/layout/trial-banner';
-import { OnboardingBanner } from '@/components/layout/onboarding-banner';
-import { OfflineBanner } from '@/components/layout/offline-banner';
-import { PWAInstallBanner } from '@/components/layout/pwa-install-banner';
+import { AppShell } from '@/components/layout/app-shell';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -21,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Onboarding check — runs for all (app) routes
   const { data: profile } = await supabase
     .from('profiles')
-    .select('onboarding_completed, display_name')
+    .select('onboarding_completed, display_name, plan, trial_ends_at')
     .eq('id', user.id)
     .single();
 
@@ -42,26 +36,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showOnboardingBanner = !onboardingCompleted && hasTransactions;
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      <OfflineBanner />
-      <PWAInstallBanner />
-      <TrialBanner />
-      <OnboardingBanner show={showOnboardingBanner} />
-      <header className="shrink-0 border-b border-border bg-card px-4 py-3">
-        <div className="mx-auto flex max-w-screen-lg items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              F
-            </div>
-            <span className="font-semibold text-foreground">Finansim</span>
-          </div>
-          <LogoutButton />
-        </div>
-      </header>
-      {/* overflow-y-auto allows pages with long content to scroll inside main */}
-      <main className="flex flex-1 flex-col overflow-y-auto pb-16">{children}</main>
-      <BottomNav />
-      <Toaster position="bottom-center" richColors />
-    </div>
+    <AppShell
+      showOnboardingBanner={showOnboardingBanner}
+      userName={profile?.display_name ?? null}
+      userEmail={user.email ?? ''}
+      userPlan={profile?.plan ?? 'free'}
+      userTrialEndsAt={profile?.trial_ends_at ?? null}
+    >
+      {children}
+    </AppShell>
   );
 }
