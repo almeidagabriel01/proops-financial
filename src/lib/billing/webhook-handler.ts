@@ -1,14 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 
-// ---------------------------------------------------------------------------
-// Asaas webhook types
-// ---------------------------------------------------------------------------
-type AsaasEvent =
-  | { event: 'PAYMENT_CONFIRMED'; payment: { id: string; subscription: string; customer: string; status: string; dueDate?: string } }
-  | { event: 'PAYMENT_OVERDUE'; payment: { id: string; subscription: string; customer: string; status: string } }
-  | { event: 'SUBSCRIPTION_CANCELED'; subscription: { id: string; customer: string; status: string } }
-
 // Grace period: 3 days after invoice.payment_failed before revoking access
 const GRACE_PERIOD_DAYS = 3;
 
