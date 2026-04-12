@@ -52,7 +52,7 @@ describe('Account Deletion — cascade order', () => {
   });
 });
 
-describe('Account Deletion — Asaas subscription', () => {
+describe('Account Deletion — Stripe subscription', () => {
   it('only cancels subscriptions with active or past_due status', () => {
     const cancelableStatuses = ['active', 'past_due'];
     const nonCancelable = ['canceled', 'expired', 'pending'];
@@ -65,11 +65,11 @@ describe('Account Deletion — Asaas subscription', () => {
     }
   });
 
-  it('Asaas cancel failure does not block account deletion', () => {
+  it('Stripe cancel failure does not block account deletion', () => {
     // Simulates try/catch around cancelSubscription — error is silently swallowed
     let deletionProceeded = false;
     try {
-      throw new Error('Asaas API unavailable');
+      throw new Error('Stripe API unavailable');
     } catch {
       // Intentionally ignored — subscription may already be cancelled
     }
