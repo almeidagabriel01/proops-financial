@@ -39,12 +39,6 @@
       "Bash(gh pr merge*)"
     ]
   },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
-    "skillx@skillx-marketplace": true
-  },
-  "language": "portuguese",
   "hooks": {
     "PostToolUse": [
       {
@@ -59,5 +53,13 @@
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "skillx@skillx-marketplace": true,
+    "superpowers@claude-plugins-official": true,
+    "marketing-skills@marketingskills": true
+  },
+  "language": "portuguese"
 }
