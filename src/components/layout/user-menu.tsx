@@ -16,7 +16,7 @@ interface UserMenuProps {
 }
 
 function getPlanLabel(plan?: string | null, trialEndsAt?: string | null): { label: string; variant: 'pro' | 'trial' | 'free' } {
-  if (plan === 'premium') return { label: 'Pro', variant: 'pro' };
+  if (plan === 'pro') return { label: 'Pro', variant: 'pro' };
   if (trialEndsAt && new Date(trialEndsAt) > new Date()) return { label: 'Trial Pro', variant: 'trial' };
   return { label: 'Grátis', variant: 'free' };
 }
