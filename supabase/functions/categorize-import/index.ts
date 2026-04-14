@@ -48,108 +48,169 @@ function normalizeDescription(raw: string): string {
 //   - iptu ONLY in impostos (not moradia)
 //   - Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
 
+// Ordering mirrors src/lib/ai/categorizer.ts — keep in sync.
 const KEYWORD_RULES: Array<{ keywords: string[]; category: string }> = [
   {
-    keywords: ['ifood', 'rappi', 'uber eats', '99food', 'james ', 'loggi'],
+    // DELIVERY — before transporte
+    keywords: [
+      'ifood', 'rappi', 'uber eats', 'ubereats', 'james delivery', 'loggi',
+      'dominos', 'pizza hut', 'burger king delivery', 'mcdelivery',
+    ],
     category: 'delivery',
   },
   {
+    // ASSINATURAS streaming/tech — before compras (amazon prime before amazon)
     keywords: [
-      'uber', '99 ', 'cabify', 'estacionamento', 'pedagio',
+      'netflix', 'spotify', 'amazon prime', 'disney', 'hbo ',
+      'paramount', 'globoplay', 'youtube premium', 'youtubepremium', 'youtube music',
+      'google one', 'icloud', 'apple.com', 'applecomb', 'microsoft',
+      'office 365', 'adobe', 'dropbox', 'mercadopago assin', 'melimais',
+      'produtos globo', 'combate', 'deezer', 'crunchyroll', 'duolingo', 'canva',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    // ASSINATURAS telecom pos/pre-pago — before moradia
+    keywords: [
+      'tim pos', 'claro pos', 'vivo pos', 'oi pos',
+      'tim pre', 'claro pre', 'tim controle', 'vivo controle',
+      'tim black', 'claro black',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    // TRANSPORTE — after delivery
+    keywords: [
+      'uber', '99app', '99 taxi', 'cabify',
+      'posto ', 'auto posto', 'combustivel', 'gasolina', 'etanol',
+      'shell ', 'ipiranga', 'br petro', 'raizen', 'ale combustivel',
+      'sem parar', 'nutag', 'conectcar',
+      'estapar', 'estacionamento', 'pedagio',
+      'mecanica', 'autopecas', 'auto peca', 'borracharia', 'pneu ',
       'metro ', 'sptrans', 'bilhete unico',
-      'gasolina', 'etanol', 'combustivel',
-      'posto ', 'shell ', 'ipiranga', 'petrobras',
     ],
     category: 'transporte',
   },
   {
+    // IMPOSTOS — before transferencias
     keywords: [
-      'supermercado', 'hipermercado', 'carrefour', 'extra ',
-      'pao de acucar', 'atacadao', 'assai', 'hortifrutti', 'hortifruti',
-      'restaurante', 'padaria', 'lanchonete',
-      'mc donalds', 'mcdonalds', 'burger', 'churrascaria', 'pizzaria',
-      'sushi', 'acougue', 'mercearia', 'sacolao',
+      'ipva', 'iptu', 'irpf', 'imposto', 'darf', 'detran', 'licenciamento',
+      'iof ', 'juros de rotativo', 'juros rotativo',
+      'encargos', 'multa ', 'sefaz', 'receita federal',
+    ],
+    category: 'impostos',
+  },
+  {
+    // TRANSFERENCIAS — before moradia
+    keywords: [
+      'pix ', 'ted ', 'doc ', 'transferencia',
+      'pagamento recebido', 'credito de rotativo', 'estorno',
+      'devolucao', 'reembolso', 'saldo em rotativo', 'encerramento de divida',
+    ],
+    category: 'transferencias',
+  },
+  {
+    // COMPRAS — before alimentacao (mercado livre before generic "mercado")
+    keywords: [
+      'mercado livre', 'mercadolivre', 'shopee', 'aliexpress',
+      'magalu', 'magazine luiza', 'americanas', 'submarino',
+      'casas bahia', 'renner', 'riachuelo', 'marisa', 'havan', 'leader',
+      'capinha', 'capas ', 'acessorio', 'king cell', 'eletronico', 'informatica',
+      'kalunga', 'leroy merlin', 'amazon', 'kabum', 'ponto frio',
+    ],
+    category: 'compras',
+  },
+  {
+    // ALIMENTACAO — after compras
+    keywords: [
+      'supermercado', 'hipermercado', 'mercadinho', 'atacadao', 'atacado',
+      'carrefour', 'extra ', 'pao de acucar', 'mundial', 'prezunic',
+      'hortifruti', 'hortifrutti', 'sacolao', 'feira ',
+      'padaria', 'panificadora', 'confeitaria',
+      'acougue', 'peixaria', 'mercearia',
+      'acai', 'lanchonete', 'cafeteria', 'cafe ',
+      'restaurante', 'bar ', 'boteco', 'churrascaria',
+      'hamburgueria', 'sushi', 'pizza ', 'subway', 'mcdonalds', 'burger',
     ],
     category: 'alimentacao',
   },
   {
     keywords: [
-      'netflix', 'spotify', 'amazon prime', 'icloud', 'disney',
-      'hbo ', 'globoplay', 'apple tv', 'deezer', 'youtube premium',
-      'crunchyroll', 'academia', 'smartfit', 'smart fit',
-    ],
-    category: 'assinaturas',
-  },
-  {
-    keywords: [
-      'farmacia', 'drogaria', 'droga raia', 'drogasil', 'ultrafarma',
-      'pacheco', 'nissei', 'clinica', 'consulta', 'medico', 'dentista',
-      'laboratorio', 'hospital', 'unimed', 'amil', 'hapvida',
-      'plano saude', 'exame ', 'fisioterapia', 'droga ',
+      'farmacia', 'drogaria', 'droga ', 'ultrafarma', 'drogasil',
+      'pacheco', 'nissei', 'pague menos', 'farma',
+      'hospital', 'clinica', 'laboratorio', 'laborat',
+      'fleury', 'dasa ', 'odontologia', 'dentista', 'ortodontia',
+      'oralplatinum', 'odonto', 'medico', 'consulta', 'exame ',
+      'hapvida', 'unimed', 'bradesco saude', 'sulamerica saude', 'amil',
     ],
     category: 'saude',
   },
   {
+    // MORADIA — after telecom-assinaturas and transferencias
     keywords: [
-      'mercado livre', 'shopee', 'aliexpress', 'magalu', 'magazine luiza',
-      'americanas', 'renner', 'ca moda', 'zara', 'hm ', 'riachuelo',
-      'kabum', 'submarino', 'ponto frio', 'casas bahia',
-      'amazon marketplace', 'amazon ',
-    ],
-    category: 'compras',
-  },
-  {
-    keywords: ['pix ', 'ted ', 'doc ', 'transferencia', 'emprestimo'],
-    category: 'transferencias',
-  },
-  {
-    keywords: [
-      'aluguel', 'condominio', 'energia ', 'cpfl', 'enel', 'cemig',
-      'light ', 'eletrobras', 'sabesp', 'comgas', 'copasa', 'sanepar',
-      'gas ', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
+      'condominio', 'aluguel',
+      'agua ', 'sabesp', 'copasa',
+      'luz ', 'energia ', 'enel ', 'cemig ', 'copel ', 'coelba', 'celpe',
+      'gas ', 'comgas', 'gas natural',
+      'internet ', 'claro residencial', 'vivo residencial',
+      'tim residencial', 'oi residencial', 'net combo',
+      'telefone fixo', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
     ],
     category: 'moradia',
   },
   {
     keywords: [
-      'faculdade', 'universidade', 'escola ', 'colegio', 'mensalidade',
-      'udemy', 'alura', 'coursera', 'curso ', 'treinamento', 'pearson', 'apostila',
+      'escola ', 'colegio', 'faculdade', 'universidade',
+      'educacao ltda', 'educacao s', 'faceb educacao', 'anhanguera', 'kroton',
+      'descomplica', 'alura', 'udemy', 'coursera',
+      'curso ', 'aula ', 'workshop', 'livraria', 'livro ',
+      'material escolar', 'papelaria', 'matricula', 'mensalidade escolar',
     ],
     category: 'educacao',
   },
   {
+    // Gaming (steam/xbox/playstation) lives here, not assinaturas
     keywords: [
-      'cinema', 'teatro', 'show ', 'ingresso', 'bilheteria',
-      'pousada', 'hotel ', 'hospedagem', 'viagem', 'turismo',
-      'bar ', 'balada', 'steam ', 'xbox', 'playstation', 'nintendo',
-      'jogos', 'lazer', 'cervejaria', 'ticketmaster', 'sympla', 'gamepass',
+      'cinema', 'cinemark', 'kinoplex', 'ingresso', 'show ', 'teatro ',
+      'parque ', 'museu ', 'academia ', 'smart fit', 'bodytech', 'bluefit', 'crossfit',
+      'steam', 'playstation', 'xbox', 'nintendo', 'riot games',
+      'hotel ', 'pousada', 'hostel', 'airbnb', 'booking', 'decolar',
+      'viagem', 'turismo', 'agencia ',
     ],
     category: 'lazer',
   },
   {
     keywords: [
-      'salario', 'freelance', 'deposito renda', 'renda mensal',
-      'decimo terceiro', 'bonus ', 'remuneracao', 'pro labore',
+      'salario', 'pagamento salario', 'folha pagamento',
+      'pro labore', 'prolabore', 'remuneracao',
+      'freelance', 'deposito renda', 'decimo terceiro',
     ],
     category: 'salario',
   },
   {
     keywords: [
-      'investimento', 'tesouro direto', 'tesouro selic',
-      'cdb', 'lci', 'lca', 'fii', 'acoes', 'corretora',
-      'xp ', 'rico ', 'clear ', 'nuinvest', 'caixinha', 'rendimento',
-      'resgate', 'aplicacao',
+      'xp invest', 'nubank invest', 'rico invest', 'inter invest',
+      'tesouro direto', 'tesouro selic', 'cdb ', 'lci ', 'lca ',
+      'fundo ', 'acoes ', 'bolsa ', 'rendimento', 'resgate', 'aplicacao',
+      'corretora', 'nuinvest',
     ],
     category: 'investimentos',
   },
-  {
-    keywords: [
-      'imposto', 'ipva', 'iptu', 'iof', 'darf', 'das ', 'mei ',
-      'taxa ', 'tributo', 'receita federal', 'detran', 'sefaz',
-    ],
-    category: 'impostos',
-  },
 ];
+
+// Heuristic: person names (e.g. "NATACHA CALIXTO GARCIA") → transferencias
+function looksLikePersonName(normalized: string): boolean {
+  const words = normalized.split(' ').filter((w) => w.length > 0);
+  if (words.length < 2 || words.length > 5) return false;
+  if (/\d/.test(normalized)) return false;
+  const businessWords = [
+    'ltda', 'eireli', 'comercio', 'servicos', 'industria', 'distribuidora',
+    'restaurante', 'loja', 'mercado', 'farmacia', 'supermercado',
+    'posto', 'auto', 'moto', 'peca', 'hotel', 'bar', 'cafe',
+  ];
+  if (businessWords.some((w) => normalized.includes(w))) return false;
+  return words.every((w) => /^[a-z]{2,}$/.test(w));
+}
 
 function categorizeByKeywords(description: string): { category: string; confidence: number } {
   const normalized = normalizeDescription(description);
@@ -159,6 +220,10 @@ function categorizeByKeywords(description: string): { category: string; confiden
         return { category: rule.category, confidence: STUB_CONFIDENCE };
       }
     }
+  }
+  // Fallback heuristic: person names → transferencias
+  if (looksLikePersonName(normalized)) {
+    return { category: 'transferencias', confidence: 0.6 };
   }
   return { category: 'outros', confidence: 0 };
 }
