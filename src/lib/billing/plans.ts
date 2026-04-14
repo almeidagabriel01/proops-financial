@@ -102,6 +102,8 @@ export const PLAN_LIMITS = {
     maxGoals: 2,
     cashFlowMonthsAhead: 1,
     recurringAutoDetect: false,
+    // Categorização
+    maxCategorizationRules: 5,
   },
   pro: {
     aiChatMonthly: 200,
@@ -115,6 +117,8 @@ export const PLAN_LIMITS = {
     maxGoals: Infinity,
     cashFlowMonthsAhead: 12,
     recurringAutoDetect: true,
+    // Categorização
+    maxCategorizationRules: Infinity,
   },
 } as const;
 

@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { MessageCircle, Target, Upload, Settings, Wallet } from 'lucide-react';
+import { MessageCircle, Target, Upload, Settings, Wallet, Sliders } from 'lucide-react';
 
 const menuItems = [
   { href: '/chat', icon: MessageCircle, label: 'Chat IA', description: 'Pergunte sobre suas finanças', color: 'text-blue-600 bg-blue-500/10' },
   { href: '/more/orcamentos', icon: Wallet, label: 'Orçamentos', description: 'Limite de gastos por categoria', color: 'text-green-600 bg-green-500/10' },
   { href: '/more/objetivos', icon: Target, label: 'Objetivos', description: 'Metas financeiras', color: 'text-purple-600 bg-purple-500/10' },
+  { href: '/more/regras', icon: Sliders, label: 'Regras de Categorização', description: 'Categorize automaticamente com suas regras', color: 'text-indigo-600 bg-indigo-500/10' },
   { href: '/import', icon: Upload, label: 'Importar Extrato', description: 'OFX e CSV do seu banco', color: 'text-amber-600 bg-amber-500/10' },
   { href: '/settings', icon: Settings, label: 'Configurações', description: 'Perfil, plano e dados', color: 'text-muted-foreground bg-muted' },
 ];

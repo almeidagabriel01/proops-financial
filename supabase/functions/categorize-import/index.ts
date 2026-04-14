@@ -228,6 +228,55 @@ function categorizeByKeywords(description: string): { category: string; confiden
   return { category: 'outros', confidence: 0 };
 }
 
+// ─── Tier 0: Explicit user rules (table: categorization_rules) ────────────────
+
+async function lookupCategorizationRules(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  transactions: PendingTransaction[],
+): Promise<Map<string, { category: string; source: 'rule' }>> {
+  const results = new Map<string, { category: string; source: 'rule' }>();
+  if (transactions.length === 0) return results;
+
+  const { data, error } = await supabase
+    .from('categorization_rules')
+    .select('pattern, match_type, category')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('priority', { ascending: false });
+
+  if (error) {
+    console.error('[categorize-import] Tier 0 lookup error:', error);
+    return results;
+  }
+
+  const rules: Array<{ pattern: string; match_type: string; category: string }> = data ?? [];
+  if (rules.length === 0) return results;
+
+  for (const tx of transactions) {
+    const normalized = normalizeDescription(tx.description);
+    for (const rule of rules) {
+      const pat = normalizeDescription(rule.pattern);
+      let matched = false;
+      if (rule.match_type === 'exact') {
+        matched = normalized === pat;
+      } else if (rule.match_type === 'starts_with') {
+        matched = normalized.startsWith(pat);
+      } else {
+        // contains (default)
+        matched = normalized.includes(pat);
+      }
+      if (matched) {
+        results.set(tx.id, { category: rule.category, source: 'rule' });
+        break; // first match wins (priority DESC already applied)
+      }
+    }
+  }
+
+  return results;
+}
+
 // ─── Tier 1: User dictionary lookup (table: category_dictionary) ──────────────
 
 async function lookupUserDictionary(
@@ -510,7 +559,7 @@ async function saveTransactionUpdates(
   updates: Array<{
     id: string;
     category: string;
-    category_source: 'ai' | 'user' | 'cache';
+    category_source: 'ai' | 'user' | 'cache' | 'rule';
     category_confidence: number | null;
   }>,
 ): Promise<void> {
@@ -590,9 +639,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Tier 0: Explicit user rules ──────────────────────────────────────────
+    const ruleHits = await lookupCategorizationRules(supabase, userId, pending);
+    const afterTier0 = pending.filter((t) => !ruleHits.has(t.id));
+    console.log('[categorize-import] Tier 0 hits:', ruleHits.size, 'remaining:', afterTier0.length);
+
     // ── Tier 1: User dictionary ──────────────────────────────────────────────
-    const userHits = await lookupUserDictionary(supabase, userId, pending);
-    const afterTier1 = pending.filter((t) => !userHits.has(t.id));
+    const userHits = await lookupUserDictionary(supabase, userId, afterTier0);
+    const afterTier1 = afterTier0.filter((t) => !userHits.has(t.id));
     console.log('[categorize-import] Tier 1 hits:', userHits.size, 'remaining:', afterTier1.length);
 
     // ── Tier 2: Global cache ─────────────────────────────────────────────────
@@ -608,10 +662,13 @@ Deno.serve(async (req) => {
     const updates: Array<{
       id: string;
       category: string;
-      category_source: 'ai' | 'user' | 'cache';
+      category_source: 'ai' | 'user' | 'cache' | 'rule';
       category_confidence: number | null;
     }> = [];
 
+    for (const [id, hit] of ruleHits) {
+      updates.push({ id, category: hit.category, category_source: 'rule', category_confidence: 1.0 });
+    }
     for (const [id, hit] of userHits) {
       updates.push({ id, category: hit.category, category_source: 'user', category_confidence: null });
     }
