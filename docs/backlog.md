@@ -160,6 +160,135 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
+## Tech Debt — Story C1.5 (Detecção de Cobranças Duplicadas)
+
+### C1.5-mn1 — Extra round-trip de DB no fire-and-forget (Etapa 7.5)
+
+**Prioridade:** Baixa
+**Origem:** Story C1.5 mn1 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/import/route.ts` — Etapa 7.5
+**Descrição:** O IIFE de detecção re-busca IDs das transações por `import_id` em vez de usar IDs já disponíveis. A razão técnica é que o insert não usa `.select()`, então os IDs atribuídos pelo banco não ficam disponíveis localmente. Adiciona 1 query extra por importação.
+**Fix:** Adicionar `.select('id')` ao insert de transações na Etapa 6 e passar os IDs diretamente ao `detectDuplicates`.
+
+---
+
+### C1.5-mn2 — Limite inconsistente entre GET /api/duplicate-alerts e query do dashboard
+
+**Prioridade:** Baixa
+**Origem:** Story C1.5 mn2 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/duplicate-alerts/route.ts` e `src/app/(app)/dashboard/page.tsx`
+**Descrição:** `GET /api/duplicate-alerts` retorna até 10 alertas; query do dashboard usa `.limit(5)`. Não causa inconsistência funcional (dashboard faz query direta), mas a divergência pode confundir em testes futuros.
+**Fix:** Alinhar ambos para o mesmo valor (sugestão: 5, já que o card exibe no máximo 3).
+
+---
+
+### C1.5-mn3 — `(supabase as any)` em duplicate_alerts até regenerar tipos
+
+**Prioridade:** Baixa
+**Origem:** Story C1.5 mn3 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/duplicate-alerts/route.ts`, `src/app/api/duplicate-alerts/[id]/route.ts`, `src/app/(app)/dashboard/page.tsx`
+**Descrição:** Tabela `duplicate_alerts` não está em `types.ts` (requer `supabase gen types` com instância rodando). Segue padrão existente de `scheduled_transactions`.
+**Fix:** Rodar `supabase gen types typescript --local > src/lib/supabase/types.ts` após aplicar a migration em ambiente local.
+
+---
+
+## Tech Debt — Story C1.6 (Detecção de Sazonalidades BR)
+
+### C1.6-mn1 — `getSeasonalityEstimate` omite campo `yearMonth` do contrato de AC2
+
+**Prioridade:** Baixa
+**Origem:** Story C1.6 mn1 (QA Review 2026-04-13)
+**Arquivo:** `src/lib/dashboard/seasonalities.ts` — `getSeasonalityEstimate`
+**Descrição:** AC2 especifica retorno `{ total, transactionCount, yearMonth: string }`. A implementação retorna apenas `{ total, transactionCount }`. Campo não é consumido em lugar algum atualmente, sem impacto funcional. Se `yearMonth` for necessário futuramente (ex: exibir "você gastou R$X em fevereiro/2025"), exigirá adição retroativa.
+**Fix:** Adicionar `yearMonth: \`${referenceYear}-${String(months[0]).padStart(2, '0')}\`` ao retorno.
+
+---
+
+### C1.6-mn2 — CTA de sazonalidade multi-mês aponta apenas ao mês visualizado
+
+**Prioridade:** Baixa
+**Origem:** Story C1.6 mn2 (QA Review 2026-04-13)
+**Arquivo:** `src/components/dashboard/seasonality-card.tsx`
+**Descrição:** Para sazonalidades multi-mês (IRPF: meses 3-4, férias: 6-7), o link CTA usa `lastYearMonth` baseado no mês atualmente visualizado. Ao visualizar abril 2026, o link vai para `/transactions?month=2025-04&search=irpf`, mas as transações de março/2025 ficam inacessíveis pelo link. Aceitável para MVP.
+**Fix:** Para multi-mês, gerar links para todos os meses da sazonalidade, ou usar apenas o período mais comum (ex: primeiro mês da sazonalidade).
+
+---
+
+### C1.6-mn3 — Keywords com acento não casam com extratos bancários em ASCII
+
+**Prioridade:** Baixa
+**Origem:** Story C1.6 mn3 (QA Review 2026-04-13)
+**Arquivo:** `src/lib/dashboard/seasonalities.ts` — `BRAZIL_SEASONALITIES`
+**Descrição:** Keywords `'veículo'`, `'matrícula'`, `'férias'`, `'confraternização'` não correspondem a descrições de extratos que usam ASCII sem acentuação (ex: "VEICULO CRLV SP", "MATRICULA ESCOLA", "FERIAS HOTEL"). Cada sazonalidade tem outras keywords sem acento que compensam na maioria dos casos, mas a cobertura é parcial.
+**Fix:** Adicionar variantes sem acento às keyword lists (`'veiculo'`, `'matricula'`, `'ferias'`, `'confraternizacao'`) ou implementar normalização de acento na função `getSeasonalityEstimate`.
+
+---
+
+## Tech Debt — Story C1.7 (Safe-to-Spend Card)
+
+### C1.7-mn1 — `hasData=false` branch em `SafeToSpendCard` é código morto
+
+**Prioridade:** Baixa
+**Origem:** Story C1.7 mn1 (QA Review 2026-04-13)
+**Arquivo:** `src/components/dashboard/safe-to-spend-card.tsx` (linha 74), `src/app/(app)/dashboard/page.tsx` (linha 202)
+**Descrição:** O card só renderiza dentro do bloco `{hasData ? <> ... </> : <DashboardEmptyState/>}`. O prop `hasData` passado ao componente será sempre `true` quando o card renderizar — o branch `!hasData` (que exibe "Importe seu extrato para ativar este card") é inalcançável. AC5 especifica essa mensagem, mas o `DashboardEmptyState` já cobre o caso de usuário sem dados.
+**Fix:** Remover o branch `!hasData` do componente ou mover o `SafeToSpendCard` para fora do guard `hasData` e deixar o componente tratar ambos os casos.
+
+---
+
+### C1.7-mn2 — `safeToSpend === 0` dispara alerta "despesas superam receitas"
+
+**Prioridade:** Baixa
+**Origem:** Story C1.7 mn2 (QA Review 2026-04-13)
+**Arquivo:** `src/components/dashboard/safe-to-spend-card.tsx` (linha 20)
+**Descrição:** `isNegative = safeToSpend <= 0` inclui o caso exato zero. Quando `income = expenses + pendingTotal`, o card exibe vermelho com "Atenção: despesas superam receitas neste mês" — texto tecnicamente inacurado quando o saldo é exatamente zero.
+**Fix:** Alterar para `isNegative = safeToSpend < 0` para reservar o alerta a déficits reais. Tratar `safeToSpend === 0` com cor âmbar e texto neutro ("Seu saldo disponível é zero este mês").
+
+---
+
+### C1.7-mn3 — Query de contas pendentes sem filtro de data mínima
+
+**Prioridade:** Baixa
+**Origem:** Story C1.7 mn3 (QA Review 2026-04-13)
+**Arquivo:** `src/app/(app)/dashboard/page.tsx` (linhas 114-119)
+**Descrição:** A query usa apenas `.lte('due_date', endOfCurrentMonth)` sem `.gte('due_date', startOfToday)`. Contas com `due_date` em meses anteriores que permanecem em `status = 'pending'` (não pagas, não canceladas) são incluídas no `pendingTotal`, inflando o cálculo. A nota técnica do spec incluía o filtro `gte` para evitar esse cenário.
+**Fix:** Adicionar `.gte('due_date', new Date().toISOString().slice(0, 10))` ao query de pending bills, ou usar a data de início do mês visualizado como lower bound.
+
+---
+
+*Última atualização: 2026-04-13*
+
+---
+
+## Tech Debt — Story C1.4 (Alertas de Orçamento)
+
+### C1.4-mn1 — `NEXT_PUBLIC_APP_URL` ausente queima log entry sem entregar push
+
+**Prioridade:** Média
+**Origem:** Story C1.4 mn1 (QA Review 2026-04-13)
+**Arquivo:** `supabase/functions/check-budget-alerts/index.ts` (linha 65)
+**Descrição:** Se `NEXT_PUBLIC_APP_URL` não estiver nas secrets da Edge Function, `appUrl = ''`. Em Deno, `fetch('')` lança `TypeError: Invalid URL` — capturado pelo try/catch — mas o `budget_alert_log` já foi inserido (TOCTOU insert-first). A unique constraint `(budget_id, threshold, month)` impede reenvio no mesmo mês. Resultado: alerta não entregue e sem possibilidade de retry.
+**Fix:** Validar `NEXT_PUBLIC_APP_URL` no início do handler. Se ausente, retornar 500 sem inserir logs — evita queimar entries:
+```typescript
+const appUrl = Deno.env.get('NEXT_PUBLIC_APP_URL');
+if (!appUrl) {
+  console.error('[check-budget-alerts] NEXT_PUBLIC_APP_URL não configurado');
+  return new Response(JSON.stringify({ error: 'NEXT_PUBLIC_APP_URL not set' }), { status: 500 });
+}
+```
+
+---
+
+### C1.4-mn2 — Import trigger pode rodar antes da categorização terminar
+
+**Prioridade:** Baixa
+**Origem:** Story C1.4 mn2 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/import/route.ts` (Etapa 7.6)
+**Descrição:** `categorize-import` (Etapa 7) e `check-budgets` (Etapa 7.6) são acionados fire-and-forget simultaneamente. As novas transações estão salvas com `category = 'outros'` no momento em que `check-budgets` roda. `get_category_spending` filtra por categoria — não computa transações recém-importadas ainda não categorizadas. O alerta pós-import pode ser impreciso. O cron diário (08h) avalia corretamente pois a categorização já terminou.
+**Fix (opcional):** Mover o trigger do import para dentro da Edge Function `categorize-import`, acionado ao final — após o update das categorias. Ou adicionar delay de 30s no trigger do import para dar tempo à categorização.
+
+---
+
 *Última atualização: 2026-04-13*
 
 ---

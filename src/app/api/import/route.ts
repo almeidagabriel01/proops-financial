@@ -384,6 +384,17 @@ export async function POST(request: Request) {
     duration_ms: Date.now() - importStart,
   });
 
+  // ── Etapa 7.6: Verificar alertas de orçamento (fire-and-forget, AC5 C1.4) ──
+  // Roda após import para que o usuário receba alertas imediatamente ao importar
+  // um extrato que ultrapassa um orçamento, sem esperar o cron diário das 08h.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl && process.env.CRON_SECRET) {
+    fetch(`${appUrl}/api/cron/check-budgets`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    }).catch(() => {});
+  }
+
   // ── Etapa 7.5: Detecção de duplicatas (fire-and-forget) ────────
   // Runs after response — does not block the user. Failures are logged only.
   if (newTransactions.length > 0) {

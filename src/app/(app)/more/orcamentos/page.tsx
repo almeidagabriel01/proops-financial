@@ -10,6 +10,7 @@ import { BudgetForm } from '@/components/budgets/budget-form';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBudgets, type Budget } from '@/hooks/use-budgets';
 import { usePlan } from '@/hooks/use-plan';
+import { PushPermissionBanner } from '@/components/push/push-permission-banner';
 
 export default function OrcamentosPage() {
   const plan = usePlan();
@@ -101,6 +102,9 @@ export default function OrcamentosPage() {
             </Button>
           )}
         </div>
+
+        {/* Banner de permissão de push — exibido na primeira visita, gerenciado internamente */}
+        <PushPermissionBanner />
 
         {!plan.isPro && (
           <p className="text-xs text-muted-foreground">
