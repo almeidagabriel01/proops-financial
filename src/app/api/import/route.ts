@@ -8,6 +8,7 @@ import { detectInstallments } from '@/lib/installments/detector';
 import { generateFutureInstallments } from '@/lib/installments/generator';
 import { sanitizeCategory } from '@/lib/utils/categories';
 import { getEffectiveTier, PLAN_LIMITS } from '@/lib/billing/plans';
+import { detectDuplicates } from '@/lib/transactions/duplicate-detector';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -382,6 +383,24 @@ export async function POST(request: Request) {
     transaction_count: newTransactions.length,
     duration_ms: Date.now() - importStart,
   });
+
+  // ── Etapa 7.5: Detecção de duplicatas (fire-and-forget) ────────
+  // Runs after response — does not block the user. Failures are logged only.
+  if (newTransactions.length > 0) {
+    void (async () => {
+      try {
+        const { data: inserted } = await getInvokeClient()
+          .from('transactions')
+          .select('id')
+          .eq('import_id', importId);
+        if (!inserted || inserted.length === 0) return;
+        const ids = (inserted as { id: string }[]).map((t) => t.id);
+        await detectDuplicates(getInvokeClient(), user.id, ids);
+      } catch (err) {
+        console.error('[import] Etapa 7.5 detectDuplicates error:', err);
+      }
+    })();
+  }
 
   return Response.json({
     importId,

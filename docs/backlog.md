@@ -81,6 +81,58 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
+## Tech Debt — Story C1.2 (Tags Personalizadas)
+
+### C1.2-mn1 — TransactionDetail não limita exibição a 10 tags
+
+**Prioridade:** Baixa
+**Origem:** Story C1.2 mn-pós-1 (QA Review 2026-04-13)
+**Arquivo:** `src/components/transactions/transaction-detail.tsx`
+**Descrição:** AC3 especifica "se > 10 tags, exibir '...' e número total". A implementação exibe todas as tags sem truncamento no sheet de detalhe. Pode causar layout crescendo indefinidamente para usuários com muitas tags.
+**Fix:** Condicional no render: `tags.slice(0, 10)` + badge `+N` quando `tags.length > 10`.
+
+---
+
+### C1.2-mn2 — Seção Tags exibida antes das Notas (ordem invertida)
+
+**Prioridade:** Baixa
+**Origem:** Story C1.2 mn-pós-2 (QA Review 2026-04-13)
+**Arquivo:** `src/components/transactions/transaction-detail.tsx`
+**Descrição:** AC3 especifica "seção 'Tags' abaixo da seção de nota". Implementação renderiza Tags (linha 337) antes de Nota (linha 401). Sem impacto funcional.
+**Fix:** Inverter a ordem dos blocos JSX — mover seção de Tags para após a seção de Nota.
+
+---
+
+### C1.2-mn3 — POST /api/transactions/[id]/tags retorna shape incompleto
+
+**Prioridade:** Baixa
+**Origem:** Story C1.2 mn-pós-3 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/transactions/[id]/tags/route.ts`
+**Descrição:** AC2 especifica retorno `{ id, transaction_id, tag, created_at }`. Implementação retorna apenas `{ tag }`. Frontend não consome os campos extras (adiciona otimisticamente), sem quebra funcional. Divergência do contrato de API.
+**Fix:** Após upsert, fazer SELECT do registro inserido e retornar shape completo.
+
+---
+
+### C1.2-mn4 — Rollback do add tag usa closure stale (concorrência)
+
+**Prioridade:** Baixa
+**Origem:** Story C1.2 mn-pós-4 (QA Review 2026-04-13)
+**Arquivo:** `src/components/transactions/transaction-detail.tsx` — `handleAddTag()`
+**Descrição:** `tags.filter((t) => t !== tag)` usa o valor de `tags` capturado no closure. Se o usuário adicionar duas tags em rápida sucessão e a primeira falhar, o rollback pode descartar a segunda adição.
+**Fix:** Usar functional update: `setTags(prev => prev.filter(t => t !== tag))` e `setTags(prev => [...prev, tag])`.
+
+---
+
+### C1.2-mn5 — Autocomplete com `q` usa limite 20 em vez de 10
+
+**Prioridade:** Baixa
+**Origem:** Story C1.2 mn-pós-5 (QA Review 2026-04-13)
+**Arquivo:** `src/app/api/tags/autocomplete/route.ts`
+**Descrição:** AC2 especifica "Limite: 10 resultados" para busca com prefixo `q`, "20 tags mais usadas" para `q` omitido. Implementação usa `.slice(0, 20)` em ambos os casos.
+**Fix:** `const limit = prefix ? 10 : 20; .slice(0, limit)`.
+
+---
+
 ## Tech Debt — Migração Asaas → Stripe (CPF/CNPJ e plano anual)
 
 **Prioridade:** Alta (pré-launch)
@@ -108,7 +160,7 @@ Cada item lista o Epic mais adequado para inclusão e a prioridade de negócio.
 
 ---
 
-*Última atualização: 2026-04-10*
+*Última atualização: 2026-04-13*
 
 ---
 

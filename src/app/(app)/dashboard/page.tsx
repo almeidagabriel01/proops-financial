@@ -10,6 +10,7 @@ import { Loader2, TrendingDown } from 'lucide-react';
 import { getMonthBounds, groupByWeek, formatCurrency } from '@/lib/utils/format';
 import { aggregateByCategory, buildCategoryBreakdown } from '@/lib/utils/category-aggregation';
 import { UpcomingBillsCard, type UpcomingBill } from '@/components/dashboard/upcoming-bills-card';
+import { DuplicateAlertsCard, type DuplicateAlert } from '@/components/dashboard/duplicate-alerts-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -52,7 +53,7 @@ export default async function DashboardPage({
   const upcomingFrom = new Date();
   upcomingFrom.setDate(upcomingFrom.getDate() - 30);
 
-  const [currentResult, compResult, pendingResult, upcomingResult] = await Promise.all([
+  const [currentResult, compResult, pendingResult, upcomingResult, duplicateAlertsResult] = await Promise.all([
     supabase
       .from('transactions')
       .select('category, amount, type, date')
@@ -80,9 +81,20 @@ export default async function DashboardPage({
       .in('status', ['pending', 'overdue'])
       .order('due_date', { ascending: true })
       .limit(10),
-  ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('duplicate_alerts')
+      .select(
+        'id, status, created_at, t1:transaction_id_1(id, date, description, amount), t2:transaction_id_2(id, date, description, amount)',
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ] as const);
 
   const upcomingBills = ((upcomingResult as { data?: unknown[] }).data ?? []) as UpcomingBill[];
+  const duplicateAlerts = ((duplicateAlertsResult as { data?: unknown[] }).data ?? []) as DuplicateAlert[];
   const rows = currentResult.data ?? [];
   const compRows = compResult.data ?? [];
 
@@ -144,6 +156,11 @@ export default async function DashboardPage({
               prevExpenses={prevExpenses}
               savingsRate={savingsRate}
             />
+
+            {/* ── Alertas de cobranças duplicadas ───────────────────── */}
+            {duplicateAlerts.length > 0 && (
+              <DuplicateAlertsCard initialAlerts={duplicateAlerts} />
+            )}
 
             {/* ── Progresso do mês (somente mês atual) ──────────────── */}
             {isCurrentMonth && (
