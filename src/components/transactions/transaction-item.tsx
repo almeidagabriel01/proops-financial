@@ -66,12 +66,6 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
             <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
             <div className="mt-0.5 flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
-              {tx.notes && (
-                <FileText
-                  className="h-3 w-3 shrink-0 text-muted-foreground"
-                  aria-label="Tem nota"
-                />
-              )}
               <Badge
                 variant="outline"
                 className="h-4 px-1.5 text-[10px]"
@@ -83,8 +77,14 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
                 <span className="text-[10px] text-muted-foreground">Manual</span>
               )}
             </div>
-            {localTags.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
+            {(localTags.length > 0 || tx.notes) && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {tx.notes && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                    <FileText className="h-3 w-3" />
+                    Nota
+                  </span>
+                )}
                 {visibleTags.map((tag) => (
                   <Badge
                     key={tag}
