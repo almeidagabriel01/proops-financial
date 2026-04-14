@@ -63,17 +63,15 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
+            <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
               {tx.notes && (
                 <FileText
                   className="h-3 w-3 shrink-0 text-muted-foreground"
                   aria-label="Tem nota"
                 />
               )}
-            </div>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
               <Badge
                 variant="outline"
                 className="h-4 px-1.5 text-[10px]"
