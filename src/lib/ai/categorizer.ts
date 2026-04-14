@@ -30,126 +30,189 @@ export function normalizeDescription(raw: string): string {
 // ─── Keyword rules (ordered — first match wins) ───────────────────────────────
 //
 // Rules operate on the NORMALIZED description (lowercase, no accents/specials).
-// Ordering is intentional:
-//   - delivery BEFORE transporte ("uber eats" → delivery, "uber" → transporte)
-//   - transferencias BEFORE moradia ("pix recarga tim" → transferencias, not moradia)
-//   - "amazon prime" checked inside assinaturas BEFORE "amazon " in compras
-//   - iptu ONLY in impostos (not moradia)
-//   - Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
+// Critical ordering:
+//   1. delivery BEFORE transporte  ("uber eats" → delivery, not transporte)
+//   2. assinaturas BEFORE compras  ("amazon prime" → assinaturas, not compras)
+//   3. assinaturas-telecom BEFORE moradia  ("tim pos" → assinaturas, not moradia)
+//   4. impostos BEFORE transferencias  ("iof" → impostos, not transferencias)
+//   5. transferencias BEFORE moradia  ("pix recarga tim" → transferencias)
+//   6. compras BEFORE alimentacao  ("mercado livre" → compras, not "mercado")
+//   7. Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
+//
+// Keep in sync with supabase/functions/categorize-import/index.ts
 
 const KEYWORD_RULES: Array<{ keywords: string[]; category: string }> = [
   {
-    // delivery BEFORE transporte so "uber eats" wins over "uber"
-    keywords: ['ifood', 'rappi', 'uber eats', '99food', 'james ', 'loggi'],
+    // DELIVERY — before transporte (uber eats → delivery, not uber → transporte)
+    keywords: [
+      'ifood', 'rappi', 'uber eats', 'ubereats', 'james delivery', 'loggi',
+      'dominos', 'pizza hut', 'burger king delivery', 'mcdelivery', '99food',
+    ],
     category: 'delivery',
   },
   {
+    // LAZER gaming override — before assinaturas so "xbox gamepass" → lazer, not "microsoft" → assinaturas
     keywords: [
-      'uber', '99 ', 'cabify', 'estacionamento', 'pedagio',
-      'metro ', 'sptrans', 'bilhete unico',
-      'gasolina', 'etanol', 'combustivel',
-      'posto ', 'shell ', 'ipiranga', 'petrobras',
+      'xbox gamepass', 'xbox game pass', 'xbox live',
+      'playstation store', 'playstation plus', 'psn ',
     ],
-    category: 'transporte',
+    category: 'lazer',
   },
   {
-    // No generic "mercado" — too ambiguous with Mercado Livre (compras)
+    // ASSINATURAS streaming/tech — before compras (amazon prime before amazon)
+    // smart fit here so it beats the generic "academia " keyword in lazer
     keywords: [
-      'supermercado', 'hipermercado', 'carrefour', 'extra ',
-      'pao de acucar', 'atacadao', 'assai', 'hortifrutti', 'hortifruti',
-      'restaurante', 'padaria', 'lanchonete',
-      'mc donalds', 'mcdonalds', 'burger', 'churrascaria', 'pizzaria',
-      'sushi', 'acougue', 'mercearia', 'sacolao',
-    ],
-    category: 'alimentacao',
-  },
-  {
-    // Gaming subscriptions (xbox/playstation/gamepass) go to lazer, not here
-    keywords: [
-      'netflix', 'spotify', 'amazon prime', 'icloud', 'disney',
-      'hbo ', 'globoplay', 'apple tv', 'deezer', 'youtube premium',
-      'crunchyroll', 'academia', 'smartfit', 'smart fit',
+      'netflix', 'spotify', 'amazon prime', 'disney', 'hbo ',
+      'paramount', 'globoplay', 'youtube premium', 'youtubepremium', 'youtube music',
+      'google one', 'icloud', 'apple.com', 'applecomb', 'microsoft',
+      'office 365', 'adobe', 'dropbox', 'mercadopago assin', 'melimais',
+      'produtos globo', 'combate', 'deezer', 'crunchyroll', 'duolingo', 'canva',
+      'smart fit', 'bodytech', 'bluefit', 'crossfit',
     ],
     category: 'assinaturas',
   },
   {
+    // ASSINATURAS telecom pos/pre-pago — before moradia (tim pos before tim residencial)
     keywords: [
-      'farmacia', 'drogaria', 'droga raia', 'drogasil', 'ultrafarma',
-      'pacheco', 'nissei', 'clinica', 'consulta', 'medico', 'dentista',
-      'laboratorio', 'hospital', 'unimed', 'amil', 'hapvida',
-      'plano saude', 'exame ', 'fisioterapia', 'droga ',
+      'tim pos', 'claro pos', 'vivo pos', 'oi pos',
+      'tim pre', 'claro pre', 'tim controle', 'vivo controle',
+      'tim black', 'claro black',
     ],
-    category: 'saude',
+    category: 'assinaturas',
   },
   {
-    // "mercado livre" explicitly here; "amazon prime" already caught in assinaturas
+    // IMPOSTOS — before transporte so "posto " in "imposto renda" doesn't match transporte
     keywords: [
-      'mercado livre', 'shopee', 'aliexpress', 'magalu', 'magazine luiza',
-      'americanas', 'renner', 'ca moda', 'zara', 'hm ', 'riachuelo',
-      'kabum', 'submarino', 'ponto frio', 'casas bahia',
-      'amazon marketplace', 'amazon ',
+      'ipva', 'iptu', 'irpf', 'imposto', 'darf', 'detran', 'licenciamento',
+      'iof ', 'juros de rotativo', 'juros rotativo',
+      'encargos', 'multa ', 'sefaz', 'receita federal',
+      'das mei', 'taxa boleto', 'boleto bancario',
+    ],
+    category: 'impostos',
+  },
+  {
+    // TRANSPORTE — after delivery (uber eats already caught) and after impostos ("posto " in "imposto")
+    keywords: [
+      'uber', '99app', '99 taxi', 'cabify',
+      'posto ', 'auto posto', 'combustivel', 'gasolina', 'etanol',
+      'shell ', 'ipiranga', 'br petro', 'raizen', 'ale combustivel',
+      'sem parar', 'nutag', 'conectcar',
+      'estapar', 'estacionamento', 'pedagio',
+      'mecanica', 'autopecas', 'auto peca', 'borracharia', 'pneu ',
+      'metro ', 'sptrans', 'bilhete unico',
+    ],
+    category: 'transporte',
+  },
+  {
+    // TRANSFERENCIAS — before moradia (pix recarga tim must not hit moradia)
+    keywords: [
+      'pix ', 'ted ', 'doc ', 'transferencia',
+      'pagamento recebido', 'credito de rotativo', 'estorno',
+      'devolucao', 'reembolso', 'saldo em rotativo', 'encerramento de divida',
+      'emprestimo',
+    ],
+    category: 'transferencias',
+  },
+  {
+    // COMPRAS — before alimentacao (mercado livre before generic "mercado ")
+    keywords: [
+      'mercado livre', 'mercadolivre', 'shopee', 'aliexpress',
+      'magalu', 'magazine luiza', 'americanas', 'submarino',
+      'casas bahia', 'renner', 'riachuelo', 'marisa', 'havan', 'leader',
+      'capinha', 'capas ', 'acessorio', 'king cell', 'eletronico', 'informatica',
+      'kalunga', 'leroy merlin', 'amazon', 'kabum', 'ponto frio',
+      'zara', 'ca moda',
     ],
     category: 'compras',
   },
   {
-    // transferencias BEFORE moradia: "pix recarga tim" must hit here, not moradia
-    keywords: ['pix ', 'ted ', 'doc ', 'transferencia', 'emprestimo'],
-    category: 'transferencias',
+    // ALIMENTACAO — after compras so "mercado livre" is already resolved
+    // "bar " removed — generic bars are lazer; specific food establishments use restaurante/lanchonete/etc.
+    keywords: [
+      'supermercado', 'hipermercado', 'mercadinho', 'atacadao', 'atacado',
+      'carrefour', 'extra ', 'pao de acucar', 'mundial', 'prezunic',
+      'hortifruti', 'hortifrutti', 'sacolao', 'feira ',
+      'padaria', 'panificadora', 'confeitaria',
+      'acougue', 'peixaria', 'mercearia',
+      'acai', 'lanchonete', 'cafeteria', 'cafe ',
+      'restaurante', 'boteco', 'churrascaria',
+      'hamburgueria', 'sushi', 'pizza ', 'subway', 'mcdonalds', 'burger',
+      'mc donalds',
+    ],
+    category: 'alimentacao',
   },
   {
-    // iptu NOT here — it goes to impostos only
     keywords: [
-      'aluguel', 'condominio', 'energia ', 'cpfl', 'enel', 'cemig',
-      'light ', 'eletrobras', 'sabesp', 'comgas', 'copasa', 'sanepar',
-      'gas ', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
+      'farmacia', 'drogaria', 'droga ', 'ultrafarma', 'drogasil',
+      'pacheco', 'nissei', 'pague menos', 'farma',
+      'hospital', 'clinica', 'laboratorio', 'laborat',
+      'fleury', 'dasa ', 'odontologia', 'dentista', 'ortodontia',
+      'oralplatinum', 'odonto', 'medico', 'consulta', 'exame ',
+      'hapvida', 'unimed', 'bradesco saude', 'sulamerica saude', 'amil',
+    ],
+    category: 'saude',
+  },
+  {
+    // MORADIA — after telecom-assinaturas and transferencias
+    keywords: [
+      'condominio', 'aluguel',
+      'agua ', 'sabesp', 'copasa',
+      'luz ', 'energia ', 'enel ', 'cemig ', 'copel ', 'coelba', 'celpe',
+      'gas ', 'comgas', 'gas natural',
+      'internet ', 'claro residencial', 'vivo residencial',
+      'tim residencial', 'oi residencial', 'net combo',
+      'telefone fixo', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
     ],
     category: 'moradia',
   },
   {
     keywords: [
-      'faculdade', 'universidade', 'escola ', 'colegio', 'mensalidade',
-      'udemy', 'alura', 'coursera', 'curso ', 'treinamento', 'pearson', 'apostila',
+      'escola ', 'colegio', 'faculdade', 'universidade',
+      'educacao ltda', 'educacao s', 'faceb educacao', 'anhanguera', 'kroton',
+      'descomplica', 'alura', 'udemy', 'coursera',
+      'curso ', 'aula ', 'workshop', 'livraria', 'livro ',
+      'material escolar', 'papelaria', 'matricula', 'mensalidade escolar',
+      'pearson', 'livros',
     ],
     category: 'educacao',
   },
   {
-    // Gaming subscriptions live here (not assinaturas)
+    // Gaming (steam/xbox/playstation) lives here, not assinaturas
+    // smart fit/bodytech/bluefit/crossfit moved to assinaturas (they are subscriptions)
     keywords: [
-      'cinema', 'teatro', 'show ', 'ingresso', 'bilheteria',
-      'pousada', 'hotel ', 'hospedagem', 'viagem', 'turismo',
-      'bar ', 'balada', 'steam ', 'xbox', 'playstation', 'nintendo',
-      'jogos', 'lazer', 'cervejaria', 'ticketmaster', 'sympla', 'gamepass',
+      'cinema', 'cinemark', 'kinoplex', 'ingresso', 'show ', 'teatro ',
+      'parque ', 'museu ', 'academia ',
+      'steam', 'playstation', 'xbox', 'nintendo', 'riot games',
+      'hotel ', 'pousada', 'hostel', 'airbnb', 'booking', 'decolar',
+      'viagem', 'turismo', 'agencia ',
+      'bilheteria', 'cervejaria', 'cervejas', 'bar ',
     ],
     category: 'lazer',
   },
   {
     keywords: [
-      'salario', 'freelance', 'deposito renda', 'renda mensal',
-      'decimo terceiro', 'bonus ', 'remuneracao', 'pro labore',
+      'salario', 'pagamento salario', 'folha pagamento',
+      'pro labore', 'prolabore', 'remuneracao',
+      'freelance', 'deposito renda', 'decimo terceiro',
+      'bonus',
     ],
     category: 'salario',
   },
   {
     keywords: [
-      'investimento', 'tesouro direto', 'tesouro selic',
-      'cdb', 'lci', 'lca', 'fii', 'acoes', 'corretora',
-      'xp ', 'rico ', 'clear ', 'nuinvest', 'caixinha', 'rendimento',
-      'resgate', 'aplicacao',
+      'xp invest', 'nubank invest', 'rico invest', 'inter invest',
+      'tesouro direto', 'tesouro selic', 'cdb ', 'lci ', 'lca ',
+      'fundo ', 'acoes ', 'bolsa ', 'rendimento', 'resgate', 'aplicacao',
+      'corretora', 'nuinvest',
     ],
     category: 'investimentos',
-  },
-  {
-    // iptu ONLY here (not in moradia)
-    keywords: [
-      'imposto', 'ipva', 'iptu', 'iof', 'darf', 'das ', 'mei ',
-      'taxa ', 'tributo', 'receita federal', 'detran', 'sefaz',
-    ],
-    category: 'impostos',
   },
 ];
 
 // Categorizes a single description using keyword rules.
 // Returns confidence=0 and category='outros' when no rule matches.
+// Person name detection (e.g. "NATACHA CALIXTO GARCIA") is handled by
+// the Gemini prompt in the Edge Function — not here.
 export function categorizeByKeywords(description: string): { category: string; confidence: number } {
   const normalized = normalizeDescription(description);
   for (const rule of KEYWORD_RULES) {
