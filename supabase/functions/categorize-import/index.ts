@@ -20,6 +20,7 @@ interface PendingTransaction {
   id: string;
   description: string;
   amount: number;
+  type: string;
 }
 
 const STUB_CONFIDENCE = 0.8; // Fixed confidence for keyword-matched results
@@ -252,17 +253,52 @@ const VALID_CATEGORIES = new Set([
 // Falls back to keyword rules if key is missing or call fails.
 // Saves results to category_cache for Tier 2 reuse.
 
-const CATEGORIZE_SYSTEM = `Voce e um classificador de transacoes financeiras brasileiras.
+const CATEGORIZE_SYSTEM = `Voce e um classificador especialista em transacoes financeiras brasileiras de cartao de credito e conta corrente.
 
-CATEGORIAS DISPONIVEIS:
-alimentacao, delivery, transporte, moradia, saude, educacao, lazer, compras,
-assinaturas, transferencias, salario, investimentos, impostos, outros
+CATEGORIAS (use exatamente esses valores):
+- alimentacao: supermercados, padarias, acougues, hortifruti, mercearias, lojas de alimentos
+- delivery: iFood, Rappi, Uber Eats, James, restaurantes com pedido online, pizza delivery
+- transporte: Uber, 99, Cabify, onibus, metro, combustivel, estacionamento, pedagio, Sem Parar, automovel
+- moradia: aluguel, condominio, IPTU, agua, luz, gas, internet residencial, telefone fixo
+- saude: farmacia, drogaria, medico, hospital, clinica, plano de saude, dentista, laboratorio, exame
+- educacao: escola, faculdade, curso, livro didatico, material escolar, matricula, mensalidade escolar
+- lazer: cinema, teatro, show, parque, academia, clube, jogos, streaming de games, hobby, viagem, hotel, turismo
+- compras: lojas em geral, roupas, calcados, eletronicos, moveis, presentes, acessorios, capinhas, produtos nao alimenticios
+- assinaturas: Netflix, Spotify, Amazon Prime, Disney+, HBO, Apple, Google, Microsoft, planos mensais recorrentes
+- transferencias: PIX, TED, DOC, transferencia bancaria, pagamento entre pessoas
+- salario: salario, pagamento de empregador, pro-labore, freelance recebido, renda
+- investimentos: corretora, acoes, fundos, CDB, tesouro direto, cripto, aporte
+- impostos: IPVA, IR, imposto de renda, DARF, FGTS, INSS, tributos governamentais
+- outros: quando nenhuma categoria acima se aplica claramente
 
-REGRAS:
-- Responda APENAS com JSON valido, sem explicacao
-- Use a descricao para inferir a categoria
-- Na duvida, use "outros"
-- Considere o contexto brasileiro`;
+REGRAS CRITICAS:
+1. Produtos fisicos (roupas, eletronicos, acessorios, capinhas, utensilios) = compras (NUNCA impostos)
+2. iFood/Rappi/Uber Eats = delivery (NUNCA alimentacao)
+3. Supermercado/Mercado/Atacado = alimentacao (NUNCA delivery)
+4. Uber/99/taxi = transporte (NUNCA delivery)
+5. Netflix/Spotify/Amazon/Apple/Google = assinaturas (NUNCA lazer)
+6. PIX recebido sem identificar origem = transferencias
+7. Salario/pagamento de empresa = salario
+8. Farmacia/Drogaria = saude (mesmo que venda outros produtos)
+9. IPVA/IPTU/IR/DARF = impostos (NAO confundir com compras de automovel)
+10. Na duvida entre duas categorias, escolha a mais especifica
+
+EXEMPLOS DE CLASSIFICACAO:
+alimentacao: "SUPERMERCADO PAO DE ACUCAR", "MERCADINHO SILVA", "PADARIA CENTRAL", "ATACADAO", "HORTIFRUTI"
+delivery: "IFOOD*RESTAURANTE", "RAPPI", "UBER EATS", "DOMINOS PIZZA", "JAMES DELIVERY"
+transporte: "UBER*VIAGEM", "99APP", "SHELL COMBUSTIVEL", "POSTO IPIRANGA", "ESTAPAR ESTACIONAMENTO", "SEM PARAR"
+moradia: "CONDOMINIO RESIDENCIAL", "COPEL ENERGIA", "SABESP AGUA", "NET CLARO INTERNET", "ALUGUEL"
+saude: "DROGARIA SAO PAULO", "ULTRAFARMA", "DROGA RAIA", "LABORATORIO FLEURY", "HAPVIDA SAUDE"
+educacao: "FACULDADE ANHANGUERA", "CURSO ALURA", "LIVRARIA CULTURA", "MATERIAL ESCOLAR"
+lazer: "CINEMARK", "STEAM GAMES", "ACADEMIA SMART FIT", "HOTEL MARRIOTT", "AIRBNB"
+compras: "AMAZON*COMPRA", "MERCADO LIVRE", "MAGALU", "RENNER LOJAS", "SHOPEE", "CAPINHA CELULAR", "ACESSORIOS"
+assinaturas: "NETFLIX.COM", "SPOTIFY", "AMAZON PRIME", "APPLE.COM/BILL", "GOOGLE*GSUITE", "MICROSOFT 365"
+transferencias: "PIX ENVIADO", "TED PARA JOAO", "TRANSFERENCIA DOC"
+salario: "PAGAMENTO SALARIO", "FOLHA PAGAMENTO", "PRO-LABORE"
+investimentos: "XP INVESTIMENTOS", "NUBANK INVESTIMENTO", "TESOURO DIRETO"
+impostos: "IPVA 2026", "DARF IRPF", "DETRAN LICENCIAMENTO"
+
+Responda APENAS com JSON valido. Sem explicacao, sem markdown, sem comentarios.`;
 
 async function categorizeBatchGemini(
   // deno-lint-ignore no-explicit-any
@@ -281,7 +317,19 @@ async function categorizeBatchGemini(
   }
 
   try {
-    const userMessage = `Classifique estas transacoes e responda APENAS com JSON no formato [{"id":"...","category":"...","confidence":0.95}]:\n${JSON.stringify(transactions.map((t) => ({ id: t.id, description: t.description, amount: t.amount })))}`;
+    const userMessage = `Classifique estas transacoes bancarias brasileiras.
+Responda APENAS com JSON no formato:
+[{"id":"uuid","category":"categoria","confidence":0.95}]
+
+TRANSACOES:
+${JSON.stringify(
+  transactions.map((t) => ({
+    id: t.id,
+    description: t.description,
+    amount: t.amount,
+    type: t.type,
+  })),
+)}`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -291,7 +339,11 @@ async function categorizeBatchGemini(
         body: JSON.stringify({
           system_instruction: { parts: [{ text: CATEGORIZE_SYSTEM }] },
           contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1024 },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 4096,
+            temperature: 0.1,
+          },
         }),
       },
     );
@@ -432,7 +484,7 @@ Deno.serve(async (req) => {
     // Load all pending transactions for this import
     const { data: pendingTxs, error: fetchError } = await supabase
       .from('transactions')
-      .select('id, description, amount')
+      .select('id, description, amount, type')
       .eq('import_id', importId)
       .eq('category_source', 'pending');
 
