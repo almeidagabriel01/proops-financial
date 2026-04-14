@@ -63,8 +63,16 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
+              {tx.notes && (
+                <FileText
+                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                  aria-label="Tem nota"
+                />
+              )}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
               <Badge
                 variant="outline"
@@ -76,25 +84,23 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
               {isManual && (
                 <span className="text-[10px] text-muted-foreground">Manual</span>
               )}
-              {tx.notes && (
-                <FileText
-                  className="h-3 w-3 shrink-0 text-muted-foreground"
-                  aria-label="Tem nota"
-                />
-              )}
-              {visibleTags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="secondary"
-                  className="h-4 px-1.5 text-[10px] font-normal"
-                >
-                  {tag}
-                </Badge>
-              ))}
-              {overflowCount > 0 && (
-                <span className="text-[10px] text-muted-foreground">+{overflowCount}</span>
-              )}
             </div>
+            {localTags.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {visibleTags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="h-4 px-1.5 text-[10px] font-normal"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+                {overflowCount > 0 && (
+                  <span className="text-[10px] text-muted-foreground">+{overflowCount}</span>
+                )}
+              </div>
+            )}
           </div>
         </button>
 
