@@ -215,18 +215,40 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Etapa 5.5: Detecção de parcelas ─────────────────────────
-  // Detectar parcelas ANTES do dedup para poder linkar as transações ao grupo
-  const detectedInstallments = detectInstallments(parsedTransactions);
+  // ── Etapa 5.5: Dedup PRIMEIRO — filtrar transações já existentes ─
+  // IMPORTANTE: dedup antes da detecção de parcelas para não criar
+  // installment_groups para transações que já estão no banco.
+  let newTransactions: typeof parsedTransactions;
+  let duplicatesSkipped: number;
+  try {
+    const { data: existingTxs } = await supabase
+      .from('transactions')
+      .select('external_id')
+      .eq('user_id', user.id)
+      .eq('bank_account_id', bankAccountId);
 
-  // Mapa: índice da transação no parsedTransactions → { groupId, installmentNumber }
+    const existingIds = new Set((existingTxs || []).map((t) => t.external_id));
+    newTransactions = parsedTransactions.filter((t) => !existingIds.has(t.external_id));
+    duplicatesSkipped = parsedTransactions.length - newTransactions.length;
+  } catch (err) {
+    console.error('[import] Etapa 5.5 dedup EXCEPTION:', err);
+    await supabase
+      .from('imports')
+      .update({ status: 'failed', error_message: 'Erro ao verificar duplicatas' })
+      .eq('id', importId);
+    return Response.json({ error: 'Erro ao verificar duplicatas' }, { status: 500 });
+  }
+
+  // Detecção de parcelas — apenas sobre as transações novas (não duplicatas)
+  const detectedInstallments = detectInstallments(newTransactions);
+
+  // Mapa: índice da transação em newTransactions → { groupId, installmentNumber }
   const installmentMap = new Map<number, { groupId: string; installmentNumber: number }>();
 
-  // Para cada parcela detectada, criar o grupo e as parcelas futuras
   if (detectedInstallments.length > 0) {
     for (const detection of detectedInstallments) {
       try {
-        const tx = parsedTransactions[detection.transactionIndex];
+        const tx = newTransactions[detection.transactionIndex];
         const installmentAmount = Math.abs(tx.amount);
         const totalAmount = installmentAmount * detection.totalCount;
 
@@ -239,7 +261,7 @@ export async function POST(request: Request) {
             total_amount: totalAmount,
             installment_count: detection.totalCount,
             installment_amount: installmentAmount,
-            first_date: tx.date, // data da primeira parcela conhecida (pode ser corrigida abaixo)
+            first_date: tx.date,
             category: sanitizeCategory('compras'),
             source: 'import',
           })
@@ -257,20 +279,17 @@ export async function POST(request: Request) {
         });
 
         // Calcular data da primeira parcela baseado na parcela atual
-        // Se a parcela atual é a 3ª e hoje é jan, então a 1ª foi em nov (jan - 2 meses)
         const firstDate = (() => {
           const d = new Date(tx.date + 'T12:00:00Z');
           d.setUTCMonth(d.getUTCMonth() - (detection.currentNumber - 1));
           return d.toISOString().slice(0, 10);
         })();
 
-        // Atualizar first_date com cálculo correto
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase.from('installment_groups') as any)
           .update({ first_date: firstDate })
           .eq('id', group.id);
 
-        // Gerar parcelas futuras como agendamentos
         const futureInstallments = generateFutureInstallments(
           {
             id: group.id,
@@ -296,26 +315,14 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── Etapa 6: Dedup e insert das transações ──────────────────
-  let newTransactions: typeof parsedTransactions;
-  let duplicatesSkipped: number;
+  // ── Etapa 6: Insert com proteção dupla via upsert ────────────
+  // onConflict garante idempotência mesmo se o app-level filter falhar
+  // (race condition, dois imports simultâneos, etc.)
   try {
-    const { data: existingTxs } = await supabase
-      .from('transactions')
-      .select('external_id')
-      .eq('user_id', user.id)
-      .eq('bank_account_id', bankAccountId);
-
-    const existingIds = new Set((existingTxs || []).map((t) => t.external_id));
-    newTransactions = parsedTransactions.filter((t) => !existingIds.has(t.external_id));
-    duplicatesSkipped = parsedTransactions.length - newTransactions.length;
-
     if (newTransactions.length > 0) {
-      const { error: insertError } = await supabase.from('transactions').insert(
-        newTransactions.map((t) => {
-          // Recalcular índice original no parsedTransactions para buscar no installmentMap
-          const globalIndex = parsedTransactions.findIndex((p) => p.external_id === t.external_id);
-          const installmentInfo = installmentMap.get(globalIndex);
+      const { error: insertError } = await supabase.from('transactions').upsert(
+        newTransactions.map((t, index) => {
+          const installmentInfo = installmentMap.get(index);
 
           return {
             user_id: user.id,
@@ -332,6 +339,7 @@ export async function POST(request: Request) {
             installment_number: installmentInfo?.installmentNumber ?? null,
           };
         }),
+        { onConflict: 'user_id,bank_account_id,external_id', ignoreDuplicates: true },
       );
 
       if (insertError) {
