@@ -77,10 +77,12 @@ export async function POST(request: Request) {
   let file: File;
   let bankName: string;
   let ext: string;
+  let force = false;
   try {
     const formData = await request.formData();
     const rawFile = formData.get('file');
     bankName = (formData.get('bank_name') as string) || 'Outro';
+    force = formData.get('force') === 'true';
 
     if (!rawFile || !(rawFile instanceof File)) {
       return Response.json({ error: 'Arquivo obrigatório' }, { status: 400 });
@@ -218,29 +220,36 @@ export async function POST(request: Request) {
   // ── Etapa 5.5: Dedup PRIMEIRO — filtrar transações já existentes ─
   // IMPORTANTE: dedup antes da detecção de parcelas para não criar
   // installment_groups para transações que já estão no banco.
+  // force=true: pula o filtro — o upsert na Etapa 6 garante idempotência no banco.
   let newTransactions: typeof parsedTransactions;
   let duplicatesSkipped: number;
-  try {
-    const { data: existingTxs } = await supabase
-      .from('transactions')
-      .select('external_id')
-      .eq('user_id', user.id)
-      .eq('bank_account_id', bankAccountId);
+  if (force) {
+    newTransactions = parsedTransactions;
+    duplicatesSkipped = 0;
+  } else {
+    try {
+      const { data: existingTxs } = await supabase
+        .from('transactions')
+        .select('external_id')
+        .eq('user_id', user.id)
+        .eq('bank_account_id', bankAccountId);
 
-    const existingIds = new Set((existingTxs || []).map((t) => t.external_id));
-    newTransactions = parsedTransactions.filter((t) => !existingIds.has(t.external_id));
-    duplicatesSkipped = parsedTransactions.length - newTransactions.length;
-  } catch (err) {
-    console.error('[import] Etapa 5.5 dedup EXCEPTION:', err);
-    await supabase
-      .from('imports')
-      .update({ status: 'failed', error_message: 'Erro ao verificar duplicatas' })
-      .eq('id', importId);
-    return Response.json({ error: 'Erro ao verificar duplicatas' }, { status: 500 });
+      const existingIds = new Set((existingTxs || []).map((t) => t.external_id));
+      newTransactions = parsedTransactions.filter((t) => !existingIds.has(t.external_id));
+      duplicatesSkipped = parsedTransactions.length - newTransactions.length;
+    } catch (err) {
+      console.error('[import] Etapa 5.5 dedup EXCEPTION:', err);
+      await supabase
+        .from('imports')
+        .update({ status: 'failed', error_message: 'Erro ao verificar duplicatas' })
+        .eq('id', importId);
+      return Response.json({ error: 'Erro ao verificar duplicatas' }, { status: 500 });
+    }
   }
 
-  // Detecção de parcelas — apenas sobre as transações novas (não duplicatas)
-  const detectedInstallments = detectInstallments(newTransactions);
+  // Detecção de parcelas — apenas sobre as transações novas (não duplicatas).
+  // force=true: pula para evitar grupos duplicados (grupos já existem no banco).
+  const detectedInstallments = force ? [] : detectInstallments(newTransactions);
 
   // Mapa: índice da transação em newTransactions → { groupId, installmentNumber }
   const installmentMap = new Map<number, { groupId: string; installmentNumber: number }>();
@@ -425,6 +434,7 @@ export async function POST(request: Request) {
     importId,
     transactionCount: newTransactions.length,
     duplicatesSkipped,
+    alreadyImported: !force && newTransactions.length === 0 && duplicatesSkipped > 0,
     status: 'categorizing',
     detectedInstallments: detectedInstallments.length,
   });

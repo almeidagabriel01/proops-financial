@@ -5,6 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import { FileDropzone } from '@/components/import/file-dropzone';
 import { ImportProgress, type ImportStatus } from '@/components/import/import-progress';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { usePlan } from '@/hooks/use-plan';
 import { PaywallModal } from '@/components/layout/paywall-modal';
 import { cn } from '@/lib/utils';
@@ -34,6 +42,10 @@ export default function ImportPage() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [alreadyImportedDialog, setAlreadyImportedDialog] = useState<{
+    open: boolean;
+    duplicatesSkipped: number;
+  }>({ open: false, duplicatesSkipped: 0 });
 
   const { isBasic, maxBankAccounts } = usePlan();
 
@@ -129,10 +141,10 @@ export default function ImportPage() {
     };
   }, [importId, importStatus, supabase]);
 
-  const handleImport = useCallback(async () => {
+  const handleImport = useCallback(async (force = false) => {
     if (!selectedFile) return;
 
-    if (isBasic) {
+    if (!force && isBasic) {
       const { count } = await supabase
         .from('bank_accounts')
         .select('*', { count: 'exact', head: true });
@@ -146,10 +158,12 @@ export default function ImportPage() {
     setIsSubmitting(true);
     setImportStatus('uploading');
     setErrorMessage(undefined);
+    setAlreadyImportedDialog({ open: false, duplicatesSkipped: 0 });
 
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('bank_name', bankName);
+    if (force) formData.append('force', 'true');
 
     try {
       const response = await fetch('/api/import', {
@@ -162,6 +176,13 @@ export default function ImportPage() {
       if (!response.ok) {
         setImportStatus('failed');
         setErrorMessage(data.error ?? 'Erro ao processar arquivo');
+        return;
+      }
+
+      // Extrato 100% duplicado e não é uma re-importação forçada → mostrar dialog
+      if (data.alreadyImported) {
+        setImportStatus(null);
+        setAlreadyImportedDialog({ open: true, duplicatesSkipped: data.duplicatesSkipped });
         return;
       }
 
@@ -306,7 +327,7 @@ export default function ImportPage() {
               )}
 
               <Button
-                onClick={handleImport}
+                onClick={() => handleImport()}
                 disabled={!selectedFile || isProcessing || isSubmitting}
                 className="w-full"
                 size="lg"
@@ -363,6 +384,36 @@ export default function ImportPage() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={alreadyImportedDialog.open}
+        onOpenChange={(open) =>
+          setAlreadyImportedDialog((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Extrato já importado</DialogTitle>
+            <DialogDescription>
+              Este extrato já foi importado anteriormente. Todas as{' '}
+              <strong>{alreadyImportedDialog.duplicatesSkipped}</strong> transações já existem
+              na sua conta. Deseja importar mesmo assim?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAlreadyImportedDialog({ open: false, duplicatesSkipped: 0 });
+                handleReset();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={() => handleImport(true)}>Importar mesmo assim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
