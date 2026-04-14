@@ -282,21 +282,36 @@ REGRAS CRITICAS:
 8. Farmacia/Drogaria = saude (mesmo que venda outros produtos)
 9. IPVA/IPTU/IR/DARF = impostos (NAO confundir com compras de automovel)
 10. Na duvida entre duas categorias, escolha a mais especifica
+11. Nomes com * (asterisco) indicam marketplace/app: MERCADOLIVRE* = compras, GOOGLE* = assinaturas (exceto Google Pay = transferencias), APPLE* ou APPLECOMB* = assinaturas, UBER* = transporte, IFOOD* = delivery
+12. Farmacia/Farma/Drogaria/Droga no nome = saude (mesmo filial ou nome proprio)
+13. Celular/Cell/Phone/Eletronicos no nome = compras
+14. Odontologia/Dentista/Clinica/Medico/Doutor = saude
+15. Educacao/Escola/Faculdade/Colegio/Curso/Ltda Educ = educacao
+16. Tag/Pedagio/Sem Parar/Nutag/ConectCar = transporte
+17. Tim/Claro/Vivo/Oi/Net seguidos de Pos/Pre/Plano = assinaturas; residencial sem sufixo = moradia
+18. Cafe/Cafeteria/Acai/Lanchonete/Restaurante/Bar = alimentacao
+19. Parcelas de lojas fisicas (Renner, Riachuelo, C&A, Marisa, Leader, Havan) = compras
+20. Juros/IOF/Rotativo/Encargos/Multa bancaria = impostos
+21. Credito de rotativo/Estorno/Pagamento recebido = transferencias
+22. Produtos + nome de empresa sem contexto = assinaturas se valor fixo mensal, compras se variavel
+23. Capas/Capinha/Acessorio/Capa para = compras
+24. Auto Peca/Autopecas/Mecanica/Oficina = transporte
+25. Nome de pessoa fisica (CPF, SWE) = transferencias
 
 EXEMPLOS DE CLASSIFICACAO:
-alimentacao: "SUPERMERCADO PAO DE ACUCAR", "MERCADINHO SILVA", "PADARIA CENTRAL", "ATACADAO", "HORTIFRUTI"
+alimentacao: "SUPERMERCADO PAO DE ACUCAR", "MERCADINHO SILVA", "PADARIA CENTRAL", "ATACADAO", "HORTIFRUTI", "CASA DO ACAI", "ACAI CAFE", "LANCHONETE", "CAFETERIA"
 delivery: "IFOOD*RESTAURANTE", "RAPPI", "UBER EATS", "DOMINOS PIZZA", "JAMES DELIVERY"
-transporte: "UBER*VIAGEM", "99APP", "SHELL COMBUSTIVEL", "POSTO IPIRANGA", "ESTAPAR ESTACIONAMENTO", "SEM PARAR"
+transporte: "UBER*VIAGEM", "99APP", "SHELL COMBUSTIVEL", "POSTO IPIRANGA", "ESTAPAR ESTACIONAMENTO", "SEM PARAR", "NUTAG*", "NUTAG PZI", "CONECTCAR", "AUTO POSTO", "JRA AUTOPECAS MECANI"
 moradia: "CONDOMINIO RESIDENCIAL", "COPEL ENERGIA", "SABESP AGUA", "NET CLARO INTERNET", "ALUGUEL"
-saude: "DROGARIA SAO PAULO", "ULTRAFARMA", "DROGA RAIA", "LABORATORIO FLEURY", "HAPVIDA SAUDE"
-educacao: "FACULDADE ANHANGUERA", "CURSO ALURA", "LIVRARIA CULTURA", "MATERIAL ESCOLAR"
+saude: "DROGARIA SAO PAULO", "ULTRAFARMA", "DROGA RAIA", "LABORATORIO FLEURY", "HAPVIDA SAUDE", "NATUS FARMA FILIAL", "FARMACIA POPULAR", "DROGASIL", "ORALPLATINUM", "ANDREA ODONTOLOGIA", "CLINICA MEDICA"
+educacao: "FACULDADE ANHANGUERA", "CURSO ALURA", "LIVRARIA CULTURA", "MATERIAL ESCOLAR", "FACEB EDUCACAO LTDA", "EDUCACAO LTDA", "ESCOLA", "COLEGIO"
 lazer: "CINEMARK", "STEAM GAMES", "ACADEMIA SMART FIT", "HOTEL MARRIOTT", "AIRBNB"
-compras: "AMAZON*COMPRA", "MERCADO LIVRE", "MAGALU", "RENNER LOJAS", "SHOPEE", "CAPINHA CELULAR", "ACESSORIOS"
-assinaturas: "NETFLIX.COM", "SPOTIFY", "AMAZON PRIME", "APPLE.COM/BILL", "GOOGLE*GSUITE", "MICROSOFT 365"
-transferencias: "PIX ENVIADO", "TED PARA JOAO", "TRANSFERENCIA DOC"
+compras: "AMAZON*COMPRA", "MERCADO LIVRE", "MAGALU", "RENNER LOJAS", "SHOPEE", "CAPINHA CELULAR", "ACESSORIOS", "MERCADOLIVRE*", "KING CELL MACHADO", "PARAISO DAS CAPAS", "JRA AUTOPECAS", "SHOPEE*", "AMERICANAS"
+assinaturas: "NETFLIX.COM", "SPOTIFY", "AMAZON PRIME", "APPLE.COM/BILL", "GOOGLE*GSUITE", "MICROSOFT 365", "APPLECOMBILL", "APPLE.COM BILL", "GOOGLE YOUTUBEPREMIUM", "GOOGLE ONE", "MP *MELIMAIS", "MERCADOPAGO ASSINATURA", "PRODUTOS GLOBO", "TIM POS", "CLARO PRE", "NET COMBO", "AMAZON.COM"
+transferencias: "PIX ENVIADO", "TED PARA JOAO", "TRANSFERENCIA DOC", "PAGAMENTO RECEBIDO", "CREDITO DE ROTATIVO", "ESTORNO DE JUROS", "SALDO EM ROTATIVO", "DORISLAYNE NERY", "NATACHA CALIXTO", "CONRADO SOUZA DIAS"
 salario: "PAGAMENTO SALARIO", "FOLHA PAGAMENTO", "PRO-LABORE"
 investimentos: "XP INVESTIMENTOS", "NUBANK INVESTIMENTO", "TESOURO DIRETO"
-impostos: "IPVA 2026", "DARF IRPF", "DETRAN LICENCIAMENTO"
+impostos: "IPVA 2026", "DARF IRPF", "DETRAN LICENCIAMENTO", "IOF DE ROTATIVO", "JUROS DE ROTATIVO", "ENCERRAMENTO DE DIVIDA", "IPVA*"
 
 Responda APENAS com JSON valido. Sem explicacao, sem markdown, sem comentarios.`;
 
