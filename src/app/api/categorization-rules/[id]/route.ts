@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { CATEGORIES } from '@/lib/billing/plans';
+import { CATEGORIES, getEffectiveTier, PLAN_LIMITS } from '@/lib/billing/plans';
 
 const VALID_MATCH_TYPES = ['contains', 'exact', 'starts_with'] as const;
 type MatchType = (typeof VALID_MATCH_TYPES)[number];
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   // Verify ownership before update
   const { data: existing, error: fetchError } = await rulesTable(supabase)
-    .select('id')
+    .select('id, active')
     .eq('id', id)
     .eq('user_id', user.id)
     .single();
@@ -74,6 +74,33 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return Response.json({ error: 'active deve ser boolean' }, { status: 400 });
     }
     updates.active = b.active;
+
+    // Enforce plan limit when re-activating a currently inactive rule
+    const currentActive = (existing as { active: boolean }).active;
+    if (b.active === true && currentActive === false) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan, trial_ends_at')
+        .eq('id', user.id)
+        .single();
+
+      const tier = getEffectiveTier(profile?.plan ?? 'basic', profile?.trial_ends_at ?? null);
+      const maxRules = PLAN_LIMITS[tier].maxCategorizationRules;
+
+      if (maxRules !== Infinity) {
+        const { count } = await rulesTable(supabase)
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('active', true);
+
+        if ((count ?? 0) >= maxRules) {
+          return Response.json(
+            { error: `Limite de ${maxRules} regras ativas atingido. Faça upgrade para Pro para regras ilimitadas.` },
+            { status: 403 }
+          );
+        }
+      }
+    }
   }
 
   if (Object.keys(updates).length === 0) {

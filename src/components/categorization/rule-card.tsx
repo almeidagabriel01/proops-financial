@@ -37,6 +37,7 @@ type Rule = {
   category: string;
   priority: number;
   active: boolean;
+  updated_at?: string;
 };
 
 type Props = {
@@ -117,6 +118,7 @@ export function RuleCard({ rule, onUpdate, onDelete }: Props) {
       </div>
 
       <RuleFormDialog
+        key={`${rule.id}-${rule.updated_at}`}
         open={editOpen}
         onOpenChange={setEditOpen}
         title="Editar Regra"

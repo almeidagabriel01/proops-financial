@@ -244,7 +244,8 @@ async function lookupCategorizationRules(
     .select('pattern, match_type, category')
     .eq('user_id', userId)
     .eq('active', true)
-    .order('priority', { ascending: false });
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: false }); // tiebreaker: mais recente vence
 
   if (error) {
     console.error('[categorize-import] Tier 0 lookup error:', error);
