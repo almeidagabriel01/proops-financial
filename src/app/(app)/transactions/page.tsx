@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search, X } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Search, X, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -147,6 +148,20 @@ export default function TransactionsPage() {
           <Plus className="h-4 w-4" /> Nova transação
         </Button>
       </div>
+
+      {/* IRPF banner — exibido quando filtro é saúde ou educação */}
+      {(categoryFilter === 'saude' || categoryFilter === 'educacao') && (
+        <div className="flex items-center gap-3 border-b border-teal-200 bg-teal-50 px-4 py-2.5 dark:border-teal-900 dark:bg-teal-950/40 lg:px-8">
+          <FileText className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+          <p className="flex-1 text-xs text-teal-800 dark:text-teal-300">
+            Essas transações podem ser dedutíveis no IRPF. Veja seu{' '}
+            <Link href="/more/irpf" className="font-medium underline underline-offset-2">
+              Relatório de IR
+            </Link>
+            .
+          </p>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-8">
