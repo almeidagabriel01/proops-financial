@@ -374,3 +374,25 @@ if (!appUrl) {
 **Descrição:** Teste de deleção não verifica que usuário A não pode deletar conta de usuário B. Proteção existe via server-side auth; falta cobertura de teste.
 **Fix:** Adicionar teste documentando que queries usam user_id do auth context, não de parâmetros da request.
 
+---
+
+## Tech Debt — Ciclo 2 QA (C2.1 + C2.2)
+
+### mn3 — Tiebreaker inconsistente entre Edge Function e API GET
+
+**Prioridade:** Baixa
+**Origem:** C2.1 QA Gate — MINOR mn3 (2026-04-17)
+**Arquivo:** `supabase/functions/categorize-import/index.ts` (Edge) vs `src/app/api/rules/route.ts` (API GET)
+**Descrição:** Edge Function usa `created_at DESC` (regra mais nova vence em empate de prioridade), mas API GET usa `created_at ASC` (regra mais antiga vence). Usuário que cria duas regras com a mesma prioridade pode ver comportamento diferente entre a prévia na UI e o import real.
+**Fix:** Alinhar ambos para `created_at ASC` (mais antiga vence — comportamento mais previsível) ou DESC com consistência end-to-end.
+
+---
+
+### mn1 — Reajustes >5% causam desaparecimento temporário da detecção
+
+**Prioridade:** Baixa
+**Origem:** C2.2 QA Gate — MINOR mn1 (2026-04-17)
+**Arquivo:** `src/lib/subscriptions/detect-subscriptions.ts` — `analyzeGroup()`
+**Descrição:** `similarityBase` é ancorado em `amounts[0]` (transação mais antiga). Quando uma assinatura sofre reajuste >5%, o novo valor fica fora da janela de similaridade em relação à base histórica, fazendo o grupo falhar o gate de 60% e desaparecer da detecção. O problema é auto-resolutivo quando os registros antigos saem da janela de 180 dias.
+**Fix:** Usar mediana dos valores ou calcular similaridade em relação ao valor mais recente em vez do mais antigo.
+

@@ -163,6 +163,7 @@ export async function detectSubscriptions(
 
     // Upsert each detected subscription
     // On conflict: preserve dismissed_at (user choice), shift amounts (mn1)
+    // price_change_detected is NOT in the upsert payload — sticky flag managed below
     for (const sub of detected) {
       const { error: upsertError } = await supabase
         .from('detected_subscriptions')
@@ -176,7 +177,6 @@ export async function detectSubscriptions(
             frequency: sub.frequency,
             last_occurrence_date: sub.last_occurrence_date,
             occurrence_count: sub.occurrence_count,
-            price_change_detected: sub.price_change_detected,
           },
           {
             onConflict: 'user_id,description_normalized',
@@ -186,6 +186,18 @@ export async function detectSubscriptions(
 
       if (upsertError) {
         console.error('[detectSubscriptions] upsert error for', sub.description_normalized, upsertError);
+        continue;
+      }
+
+      // Sticky flag: only set true when a price change is freshly detected.
+      // Never reset to false — persists until user dismisses the subscription.
+      if (sub.price_change_detected) {
+        await supabase
+          .from('detected_subscriptions')
+          .update({ price_change_detected: true })
+          .eq('user_id', userId)
+          .eq('description_normalized', sub.description_normalized)
+          .eq('price_change_detected', false);
       }
     }
 
