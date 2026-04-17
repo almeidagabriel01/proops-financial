@@ -424,13 +424,92 @@ function PlanTab() {
   );
 }
 
+interface Report {
+  id: string;
+  month: string;
+  status: string;
+  pdfUrl: string | null;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Aguardando',
+  generating: 'Gerando…',
+  completed: 'Pronto',
+  failed: 'Falhou',
+};
+
 function DadosTab() {
   const router = useRouter();
+  const { user } = useUser();
+  const [emailOptIn, setEmailOptIn] = useState(false);
+  const [emailOptInLoading, setEmailOptInLoading] = useState(false);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('monthly_report_email')
+          .eq('id', user.id)
+          .single();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setEmailOptIn((profile as any)?.monthly_report_email ?? false);
+      } catch {
+        // silently ignore — field may not be in types yet
+      }
+    })();
+  }, [user]);
+
+  useEffect(() => {
+    void (async () => {
+      setReportsLoading(true);
+      try {
+        const res = await fetch('/api/reports/monthly');
+        if (res.ok) {
+          const json = await res.json();
+          setReports(json.data ?? []);
+        }
+      } finally {
+        setReportsLoading(false);
+      }
+    })();
+  }, []);
+
+  async function handleEmailOptInChange(checked: boolean) {
+    setEmailOptInLoading(true);
+    try {
+      const res = await fetch('/api/user/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthly_report_email: checked }),
+      });
+      if (res.ok) setEmailOptIn(checked);
+    } finally {
+      setEmailOptInLoading(false);
+    }
+  }
+
+  async function handleDownload(month: string) {
+    setDownloadingMonth(month);
+    try {
+      const res = await fetch(`/api/reports/monthly/${month}/download`);
+      if (!res.ok) return;
+      const { url } = await res.json();
+      window.open(url, '_blank');
+    } finally {
+      setDownloadingMonth(null);
+    }
+  }
 
   async function handleExport() {
     setExportLoading(true);
@@ -478,6 +557,62 @@ function DadosTab() {
 
   return (
     <div className="space-y-4">
+      {/* Notificações por email */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Relatório mensal por email</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Receba um resumo do seu mês financeiro em PDF no início de cada mês.
+        </p>
+        <label className="mt-3 flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={emailOptIn}
+            disabled={emailOptInLoading}
+            onChange={(e) => void handleEmailOptInChange(e.target.checked)}
+            className="h-4 w-4 cursor-pointer accent-primary"
+          />
+          <span className="text-sm text-foreground">
+            Quero receber meu resumo financeiro mensal por email
+          </span>
+        </label>
+      </div>
+
+      {/* Lista de relatórios gerados */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Relatórios Mensais</p>
+        {reportsLoading ? (
+          <div className="mt-3 space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : reports.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Seu primeiro relatório será gerado no dia 1 do próximo mês.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {reports.map((r) => (
+              <li key={r.id} className="flex items-center justify-between text-sm">
+                <span className="text-foreground">{r.month}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{STATUS_LABELS[r.status] ?? r.status}</span>
+                  {r.status === 'completed' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={downloadingMonth === r.month}
+                      onClick={() => void handleDownload(r.month)}
+                    >
+                      {downloadingMonth === r.month ? 'Aguarde…' : 'Baixar PDF'}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-sm font-semibold text-foreground">Exportar meus dados</p>
         <p className="mt-1 text-sm text-muted-foreground">
