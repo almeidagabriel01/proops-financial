@@ -15,6 +15,7 @@ import { SeasonalityCard, type SeasonalityWithEstimate } from '@/components/dash
 import { getActiveSeasonalities, getSeasonalityEstimate } from '@/lib/dashboard/seasonalities';
 import { SafeToSpendCard } from '@/components/dashboard/safe-to-spend-card';
 import { calculateSafeToSpend } from '@/lib/dashboard/safe-to-spend';
+import { SubscriptionsCard } from '@/components/dashboard/subscriptions-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -71,7 +72,7 @@ export default async function DashboardPage({
     .toISOString()
     .slice(0, 10);
 
-  const [currentResult, compResult, pendingResult, upcomingResult, duplicateAlertsResult, pendingBillsResult, ...seasonalityEstimates] = await Promise.all([
+  const [currentResult, compResult, pendingResult, upcomingResult, duplicateAlertsResult, pendingBillsResult, subscriptionsResult, ...seasonalityEstimates] = await Promise.all([
     supabase
       .from('transactions')
       .select('category, amount, type, date')
@@ -117,6 +118,13 @@ export default async function DashboardPage({
       .eq('user_id', user.id)
       .eq('status', 'pending')
       .lte('due_date', endOfCurrentMonth),
+    // Assinaturas detectadas (detected_subscriptions ainda não está nos tipos gerados — migration 023)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('detected_subscriptions')
+      .select('current_amount, frequency, price_change_detected')
+      .eq('user_id', user.id)
+      .is('dismissed_at', null),
     // Estimativas de sazonalidade para cada sazonalidade ativa no mês visualizado
     ...activeSeasonalities.map((s) =>
       getSeasonalityEstimate(supabase, user.id, s.months, s.keywords, lastYear)
@@ -126,6 +134,17 @@ export default async function DashboardPage({
   const upcomingBills = ((upcomingResult as { data?: unknown[] }).data ?? []) as UpcomingBill[];
   const duplicateAlerts = ((duplicateAlertsResult as { data?: unknown[] }).data ?? []) as DuplicateAlert[];
   const pendingBills = ((pendingBillsResult as { data?: unknown[] }).data ?? []) as Array<{ amount: number; due_date: string }>;
+
+  const detectedSubs = ((subscriptionsResult as { data?: unknown[] }).data ?? []) as Array<{
+    current_amount: number;
+    frequency: 'monthly' | 'annual';
+    price_change_detected: boolean;
+  }>;
+  const subsTotalMonthly = detectedSubs.reduce(
+    (sum, s) => sum + (s.frequency === 'monthly' ? s.current_amount : s.current_amount / 12),
+    0,
+  );
+  const subsPriceChangeCount = detectedSubs.filter((s) => s.price_change_detected).length;
 
   const seasonalitiesWithEstimates: SeasonalityWithEstimate[] = activeSeasonalities.map((s, i) => ({
     ...s,
@@ -232,6 +251,13 @@ export default async function DashboardPage({
                 monthName={monthName}
               />
             )}
+
+            {/* ── Assinaturas detectadas ─────────────────────────────── */}
+            <SubscriptionsCard
+              totalMonthly={subsTotalMonthly}
+              count={detectedSubs.length}
+              priceChangeCount={subsPriceChangeCount}
+            />
 
             {/* ── Progresso do mês (somente mês atual) ──────────────── */}
             {isCurrentMonth && (

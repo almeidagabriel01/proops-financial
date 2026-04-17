@@ -9,6 +9,7 @@ import { generateFutureInstallments } from '@/lib/installments/generator';
 import { sanitizeCategory } from '@/lib/utils/categories';
 import { getEffectiveTier, PLAN_LIMITS } from '@/lib/billing/plans';
 import { detectDuplicates } from '@/lib/transactions/duplicate-detector';
+import { detectSubscriptions } from '@/lib/subscriptions/detect-subscriptions';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -429,6 +430,11 @@ export async function POST(request: Request) {
       }
     })();
   }
+
+  // ── Etapa 7.7: Detecção de assinaturas (fire-and-forget) ────────
+  // Always runs — even if this specific import had 0 new transactions,
+  // prior history may already contain enough data to detect a subscription.
+  void detectSubscriptions(supabase, user.id);
 
   return Response.json({
     importId,

@@ -10,6 +10,7 @@ import { RecurringItem } from '@/components/financeiro/recurring-item';
 import { RecurringForm } from '@/components/financeiro/recurring-form';
 import { useRecurringRules } from '@/hooks/use-recurring-rules';
 import { useBankAccounts } from '@/hooks/use-bank-accounts';
+import { SubscriptionsSummary } from '@/components/subscriptions/subscriptions-summary';
 
 export default function RecorrentesPage() {
   const [formOpen, setFormOpen] = useState(false);
@@ -114,6 +115,7 @@ export default function RecorrentesPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="pausadas" className="flex-1 lg:flex-none lg:px-6">Pausadas</TabsTrigger>
+          <TabsTrigger value="assinaturas" className="flex-1 lg:flex-none lg:px-6">Assinaturas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ativas" className="mt-3 space-y-3">
@@ -158,6 +160,10 @@ export default function RecorrentesPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="assinaturas" className="mt-3">
+          <SubscriptionsSummary />
         </TabsContent>
       </Tabs>
 
