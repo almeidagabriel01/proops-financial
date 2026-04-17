@@ -16,6 +16,7 @@ import { getActiveSeasonalities, getSeasonalityEstimate } from '@/lib/dashboard/
 import { SafeToSpendCard } from '@/components/dashboard/safe-to-spend-card';
 import { calculateSafeToSpend } from '@/lib/dashboard/safe-to-spend';
 import { SubscriptionsCard } from '@/components/dashboard/subscriptions-card';
+import { HealthScoreCard } from '@/components/dashboard/health-score-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -188,6 +189,8 @@ export default async function DashboardPage({
   const projectedExpenses = Math.round(expenses + dailyAvg * daysRemaining);
   const upcomingDebit = upcomingBills.filter((b) => b.type === 'debit').reduce((s, b) => s + b.amount, 0);
 
+  const resolvedMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+
   const weeklyData = groupByWeek(rows);
   const hasData = rows.length > 0;
   const hasPending = (pendingResult.count ?? 0) > 0;
@@ -229,6 +232,9 @@ export default async function DashboardPage({
               prevExpenses={prevExpenses}
               savingsRate={savingsRate}
             />
+
+            {/* ── Score de Saúde Financeira ─────────────────────────── */}
+            <HealthScoreCard month={resolvedMonth} />
 
             {/* ── Safe-to-spend (somente mês atual) ────────────────── */}
             {isCurrentMonth && (
