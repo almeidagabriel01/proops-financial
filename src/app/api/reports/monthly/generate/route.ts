@@ -78,29 +78,30 @@ export async function POST(request: Request) {
       upsert: true,
     });
 
-    const { data: urlData } = supabase.storage.from('reports').getPublicUrl(storagePath);
-
-    // Atualizar registro
+    // Marcar como completed — bucket privado, signed URL gerada on-demand no /download
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('monthly_reports')
       .update({
         status: 'completed',
         pdf_storage_path: storagePath,
-        pdf_url: urlData.publicUrl,
       })
       .eq('user_id', userId)
       .eq('month', `${month}-01`);
 
-    // Enviar email se opt-in ativo
+    // Email best-effort: falha não altera status do relatório (story out-of-scope: sem retry)
     if (profile?.monthly_report_email && userEmail) {
-      await sendMonthlyReportEmail(userEmail, userName, reportData.monthLabel, month, pdfBuffer);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from('monthly_reports')
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('month', `${month}-01`);
+      try {
+        await sendMonthlyReportEmail(userEmail, userName, reportData.monthLabel, month, pdfBuffer);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('monthly_reports')
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .eq('month', `${month}-01`);
+      } catch (emailErr) {
+        console.error('[reports/generate] email falhou (relatório permanece acessível):', emailErr);
+      }
     }
 
     return Response.json({ success: true, userId, month });
