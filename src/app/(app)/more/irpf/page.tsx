@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, FileText, Info } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -90,7 +91,7 @@ export default function IrpfPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const years = Array.from({ length: currentYear - 2022 }, (_, i) => currentYear - 1 - i);
+  const years = Array.from({ length: currentYear - 2022 + 1 }, (_, i) => currentYear - i);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,26 +154,26 @@ export default function IrpfPage() {
           </Select>
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => window.open(`/api/irpf/export?year=${year}&format=csv`)}
-              disabled={loading || isEmpty === true}
+            <a
+              href={`/api/irpf/export?year=${year}&format=csv`}
+              download={`irpf-${year}-finansim.csv`}
+              aria-disabled={loading || isEmpty === true}
+              onClick={(e) => { if (loading || isEmpty === true) e.preventDefault(); }}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5', (loading || isEmpty === true) && 'pointer-events-none opacity-50')}
             >
               <Download className="h-3.5 w-3.5" />
               CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => window.open(`/api/irpf/export?year=${year}&format=pdf`)}
-              disabled={loading || isEmpty === true}
+            </a>
+            <a
+              href={`/api/irpf/export?year=${year}&format=pdf`}
+              download={`irpf-${year}-finansim.pdf`}
+              aria-disabled={loading || isEmpty === true}
+              onClick={(e) => { if (loading || isEmpty === true) e.preventDefault(); }}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5', (loading || isEmpty === true) && 'pointer-events-none opacity-50')}
             >
               <FileText className="h-3.5 w-3.5" />
               PDF
-            </Button>
+            </a>
           </div>
         </div>
 

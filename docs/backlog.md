@@ -396,3 +396,67 @@ if (!appUrl) {
 **Descrição:** `similarityBase` é ancorado em `amounts[0]` (transação mais antiga). Quando uma assinatura sofre reajuste >5%, o novo valor fica fora da janela de similaridade em relação à base histórica, fazendo o grupo falhar o gate de 60% e desaparecer da detecção. O problema é auto-resolutivo quando os registros antigos saem da janela de 180 dias.
 **Fix:** Usar mediana dos valores ou calcular similaridade em relação ao valor mais recente em vez do mais antigo.
 
+---
+
+## Tech Debt — Ciclo 2 QA (C2.3)
+
+### mn2 — History endpoint retorna os 6 mais antigos em vez dos 6 mais recentes
+
+**Prioridade:** Baixa (impacto zero até mês 7 de operação)
+**Origem:** C2.3 QA Gate — MINOR mn2 (2026-04-17)
+**Arquivo:** `src/app/api/health-score/history/route.ts`
+**Descrição:** `.order('month', { ascending: true }).limit(6)` retorna os 6 registros mais antigos de `health_score_history`. Para usuários com >6 meses de histórico, o mini gráfico do HealthScoreCard mostraria os meses mais antigos em vez dos mais recentes. Sem impacto no MVP — nenhum usuário tem >6 meses de dados. Bug torna-se visível no 7º mês de operação.
+**Fix:** Alterar para `.order('month', { ascending: false }).limit(6)` e reverter o array antes de retornar (já implementado em `4eead00+1`).
+
+---
+
+### mn5 — Erro de fetch conflateado com estado vazio no HealthScoreCard
+
+**Prioridade:** Baixa
+**Origem:** C2.3 QA Gate — MINOR mn5 (2026-04-17)
+**Arquivo:** `src/components/dashboard/health-score-card.tsx` — catch block (linha ~55)
+**Descrição:** Quando a chamada a `/api/health-score` falha (erro de rede, 500, etc.), o componente exibe "Importe transações para ver seu score de saúde" em vez de uma mensagem de erro. Usuário não consegue distinguir falha de rede de ausência de dados.
+**Fix:** Adicionar estado `error: boolean` ao componente. No catch block, setar `error = true`. Renderizar mensagem de erro distinta ("Não foi possível carregar o score. Tente novamente.") quando `error === true`.
+
+
+---
+
+## Tech Debt — Ciclo 2 QA (C2.5 — Categorização IRPF)
+
+### C2.5-mn1 — Campo `total_deductible` ausente na resposta de `/api/irpf`
+
+**Prioridade:** Baixa
+**Origem:** C2.5 QA Gate — MINOR mn1 (2026-04-17)
+**Arquivo:** `src/app/api/irpf/route.ts`
+**Descrição:** AC1 especifica `"total_deductible": 5450.00` na estrutura JSON de resposta. O endpoint retorna `{ year, saude, educacao }` sem o campo agregado. A UI não consome esse campo, sem impacto funcional. Divergência do contrato de API especificado.
+**Fix:** Calcular e adicionar ao retorno: `total_deductible: saude.total + Math.min(educacao.total, educationLimit ?? educacao.total)`.
+
+---
+
+### C2.5-mn2 — Seletor de ano não inclui o ano atual — ✅ Corrigido em commit pós-QA
+
+**Prioridade:** Baixa (já corrigido)
+**Origem:** C2.5 QA Gate — MINOR mn2 (2026-04-17)
+**Arquivo:** `src/app/(app)/more/irpf/page.tsx`
+**Descrição:** `Array.from({ length: currentYear - 2022 }, ...)` gerava anos de `currentYear-1` para trás, excluindo o ano corrente. Usuário com transações de saúde/educação no ano atual não conseguia consultar.
+**Fix aplicado:** `Array.from({ length: currentYear - 2022 + 1 }, (_, i) => currentYear - i)` — inclui o ano corrente.
+
+---
+
+### C2.5-mn3 — Texto do empty state mais curto que o especificado no AC4
+
+**Prioridade:** Baixa
+**Origem:** C2.5 QA Gate — MINOR mn3 (2026-04-17)
+**Arquivo:** `src/app/(app)/more/irpf/page.tsx`
+**Descrição:** AC4 especifica: *"Nenhuma despesa de saúde ou educação categorizada em [ano]. Verifique se as transações foram categorizadas corretamente na tela de Transações."* Implementação usa "Nenhuma despesa dedutível em {year}" sem a orientação de verificação de categorias.
+**Fix:** Expandir o texto do empty state para incluir a orientação de verificação conforme o AC.
+
+---
+
+### C2.5-mn4 — `window.open()` para download pode ser bloqueado por popup blockers — ✅ Corrigido em commit pós-QA
+
+**Prioridade:** Baixa (já corrigido)
+**Origem:** C2.5 QA Gate — MINOR mn4 (2026-04-17)
+**Arquivo:** `src/app/(app)/more/irpf/page.tsx`
+**Descrição:** Botões de exportação CSV e PDF usavam `window.open()` que pode ser bloqueado por popup blockers em Safari e Firefox com strict mode, causando falha silenciosa no download.
+**Fix aplicado:** Substituído por elemento `<a>` com `href` e atributo `download` — padrão canônico para download de arquivos.
