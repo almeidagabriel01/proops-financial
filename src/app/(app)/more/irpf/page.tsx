@@ -127,7 +127,7 @@ export default function IrpfPage() {
       <div className="px-4 py-4 pb-24 lg:px-8 lg:py-6 lg:pb-28">
         {/* Header */}
         <div className="mb-6 flex items-center gap-3">
-          <Link href="/more">
+          <Link href="/more" className="lg:hidden">
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>

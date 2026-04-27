@@ -10,6 +10,8 @@ import {
   Bot,
   Wallet,
   Target,
+  Sliders,
+  FileText,
   Upload,
   LogOut,
 } from 'lucide-react';
@@ -24,6 +26,8 @@ const items = [
   { href: '/chat', icon: Bot, label: 'Chat IA' },
   { href: '/more/orcamentos', icon: Wallet, label: 'Orçamentos' },
   { href: '/more/objetivos', icon: Target, label: 'Objetivos' },
+  { href: '/more/regras', icon: Sliders, label: 'Regras de Categorização' },
+  { href: '/more/irpf', icon: FileText, label: 'Declaração de IR' },
   { href: '/import', icon: Upload, label: 'Importar' },
 ] as const;
 
