@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as Sentry from '@sentry/nextjs';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
@@ -139,7 +138,6 @@ export function Sidebar({ userName, userEmail, className }: SidebarProps) {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    Sentry.setUser(null);
     router.push('/login');
     router.refresh();
   }

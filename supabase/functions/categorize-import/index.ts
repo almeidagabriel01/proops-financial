@@ -364,7 +364,7 @@ const VALID_CATEGORIES = new Set([
 ]);
 
 // ─── Tier 3: Gemini AI categorization (with keyword fallback) ─────────────────
-// Calls Google Gemini 2.0 Flash when GOOGLE_AI_API_KEY is set.
+// Calls Google Gemini 2.5 Flash Lite when GOOGLE_AI_API_KEY is set.
 // Falls back to keyword rules if key is missing or call fails.
 // Saves results to category_cache for Tier 2 reuse.
 
@@ -462,7 +462,7 @@ ${JSON.stringify(
 )}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

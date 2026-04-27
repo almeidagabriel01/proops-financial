@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import * as Sentry from '@sentry/nextjs';
+
 import { usePlan } from '@/hooks/use-plan';
 import { useUser } from '@/hooks/use-user';
 import { Button } from '@/components/ui/button';
@@ -123,17 +123,16 @@ function ProfileTab() {
 }
 
 function PlanTab() {
-  const { isPro, isBasic, inTrial, trialDaysLeft, aiMonthlyLimit, maxBankAccounts } = usePlan();
+  const { isPro, isBasic, inTrial, trialDaysLeft } = usePlan();
   const { profile, user } = useUser();
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [showManageOptions, setShowManageOptions] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
-  const [subLoading, setSubLoading] = useState(false);
 
   useEffect(() => {
     if (!user || !isPro || inTrial) return;
-    setSubLoading(true);
     const supabase = createClient();
     supabase
       .from('subscriptions')
@@ -145,26 +144,67 @@ function PlanTab() {
       .maybeSingle()
       .then(({ data }) => {
         if (data?.current_period_end) setCurrentPeriodEnd(data.current_period_end as string);
-        setSubLoading(false);
       });
   }, [user, isPro, inTrial]);
 
-  async function handleUpgrade(planKey: 'basic_monthly' | 'pro_monthly') {
+  async function handleUpgrade(planKey: 'basic_monthly' | 'pro_monthly', withTrial = false) {
     setActionLoading(true);
     setActionError(null);
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey }),
+        body: JSON.stringify({ planKey, withTrial }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao iniciar checkout');
       if (data.checkoutUrl) {
-        window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
+        window.location.href = data.checkoutUrl;
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleEndTrial() {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch('/api/checkout/end-trial', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro');
+      if (data.action === 'checkout' && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao ativar plano');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDowngrade(planKey: 'basic_monthly') {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch('/api/checkout/downgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao fazer downgrade');
+      if (data.action === 'checkout' && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao fazer downgrade');
     } finally {
       setActionLoading(false);
     }
@@ -206,214 +246,201 @@ function PlanTab() {
 
   return (
     <div className="space-y-4">
-      {/* Desktop: comparação side-by-side */}
-      <div className="hidden lg:grid lg:grid-cols-2 lg:gap-4">
+      {/* Dois cards de plano com ações integradas */}
+      <div className="grid gap-4 lg:grid-cols-2">
+
+        {/* Card Basic */}
         <div className={cn(
-          'rounded-xl border p-5',
-          isBasic && !inTrial ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border bg-card',
+          'flex flex-col rounded-xl border p-5',
+          isBasic && !inTrial
+            ? 'border-primary/40 ring-1 ring-primary/20 bg-primary/5'
+            : 'border-border bg-card',
         )}>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-semibold text-foreground">Basic</p>
-            {isBasic && !inTrial && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                Atual
-              </span>
-            )}
-          </div>
-          <p className="text-2xl font-bold text-foreground">
-            R$19,90
-            <span className="text-sm font-normal text-muted-foreground">/mês</span>
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            <li>✓ 3 contas bancárias</li>
-            <li>✓ Mês atual de histórico</li>
-            <li>✓ Categorização IA</li>
-            <li>✓ Dashboard completo</li>
-            <li>✓ Chat IA (50 msgs/mês)</li>
-            <li className="text-muted-foreground/50">✗ Histórico ilimitado</li>
-          </ul>
-        </div>
-
-        <div className={cn(
-          'rounded-xl border p-5',
-          isPro ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border bg-card',
-        )}>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-semibold text-foreground">Pro</p>
-            {isPro && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                {inTrial ? 'Trial' : 'Atual'}
-              </span>
-            )}
-          </div>
-          <p className="text-2xl font-bold text-foreground">
-            R$49,90
-            <span className="text-sm font-normal text-muted-foreground">/mês</span>
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            <li>✓ Contas ilimitadas</li>
-            <li>✓ Histórico ilimitado</li>
-            <li>✓ Categorização IA</li>
-            <li>✓ Dashboard + Comparativos</li>
-            <li>✓ Chat IA (200 msgs/mês)</li>
-            <li>✓ Entrada por áudio</li>
-          </ul>
-          {!isPro && (
-            <Button
-              className="mt-4 w-full"
-              disabled={actionLoading}
-              onClick={() => handleUpgrade('pro_monthly')}
-            >
-              {actionLoading ? 'Aguarde...' : 'Assinar Pro'}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Plano atual (mobile + info compartilhada) */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Plano atual</p>
-            <p className="mt-0.5 text-xl font-bold text-foreground">{isPro ? 'Pro' : 'Basic'}</p>
-            <p className="text-sm text-muted-foreground">{isPro ? 'R$49,90/mês' : 'R$19,90/mês'}</p>
-          </div>
-          {isPro && !inTrial && (
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              Ativo
-            </span>
-          )}
-          {inTrial && (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              Trial
-            </span>
-          )}
-        </div>
-
-        {inTrial && (
-          <div className="mt-3">
-            <p className="text-sm text-amber-700 dark:text-amber-300">
-              Período de teste Pro — {trialDaysLeft}{' '}
-              {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}
-            </p>
-            {profile?.trial_ends_at && (
-              <p className="text-xs text-muted-foreground">
-                Expira em{' '}
-                {new Date(profile.trial_ends_at).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: 'long',
-                })}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Limites */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <p className="mb-3 text-sm font-semibold text-foreground">Seus limites</p>
-        <ul className="space-y-2 text-sm text-muted-foreground">
-          <li className="flex justify-between">
-            <span>Contas bancárias</span>
-            <span className="font-medium text-foreground">
-              {maxBankAccounts === Infinity ? 'Ilimitadas' : maxBankAccounts}
-            </span>
-          </li>
-          <li className="flex justify-between">
-            <span>Mensagens IA por mês</span>
-            <span className="font-medium text-foreground">{aiMonthlyLimit}</span>
-          </li>
-        </ul>
-      </div>
-
-      {/* Upgrade CTA para Basic (mobile) */}
-      {isBasic && !inTrial && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 lg:hidden">
-          <p className="text-sm font-semibold text-foreground">Faça upgrade para o Pro</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Acesso a ações por IA, entrada por áudio, contas ilimitadas e muito mais.
-          </p>
-          <Button
-            className="mt-3 w-full"
-            disabled={actionLoading}
-            onClick={() => handleUpgrade('pro_monthly')}
-          >
-            {actionLoading ? 'Aguarde...' : 'Assinar Pro — R$49,90/mês'}
-          </Button>
-        </div>
-      )}
-
-      {/* Gerenciar assinatura Pro */}
-      {isPro && !inTrial && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="mb-3 text-sm font-semibold text-foreground">Gerenciar assinatura</p>
-          {subLoading ? (
-            <Skeleton className="mb-3 h-4 w-56" />
-          ) : currentPeriodEnd && (
-            <p className="mb-3 text-sm text-muted-foreground">
-              Próximo vencimento:{' '}
-              <span className="font-medium text-foreground">
-                {new Date(currentPeriodEnd + 'T12:00:00').toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </span>
-            </p>
-          )}
-          {!cancelConfirm ? (
-            <Button
-              variant="outline"
-              className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
-              disabled={actionLoading}
-              onClick={() => setCancelConfirm(true)}
-            >
-              Cancelar assinatura
-            </Button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Tem certeza? Seu acesso Pro continuará até o final do período pago.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={actionLoading}
-                  onClick={handleCancelSubscription}
-                >
-                  {actionLoading ? 'Cancelando...' : 'Confirmar cancelamento'}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  disabled={actionLoading}
-                  onClick={() => setCancelConfirm(false)}
-                >
-                  Manter assinatura
-                </Button>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Basic</p>
+              <div className="mt-1 flex items-baseline gap-0.5">
+                <span className="text-2xl font-bold text-foreground">R$19,90</span>
+                <span className="text-sm text-muted-foreground">/mês</span>
               </div>
+            </div>
+            {isBasic && !inTrial && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                Plano atual
+              </span>
+            )}
+          </div>
+
+          <ul className="mt-4 flex-1 space-y-2 text-sm">
+            {['3 contas bancárias', 'Histórico do mês atual', 'Categorização IA', 'Dashboard completo', 'Chat IA (50 msgs/mês)'].map((f) => (
+              <li key={f} className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-emerald-500 text-xs">✓</span>{f}
+              </li>
+            ))}
+            <li className="flex items-center gap-2 text-muted-foreground/40 line-through">
+              <span className="text-xs">✗</span>Histórico ilimitado
+            </li>
+          </ul>
+
+          {/* Downgrade action — só aparece se estiver no Pro */}
+          {isPro && (
+            <div className="mt-5 border-t border-border pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={actionLoading}
+                onClick={() => void handleDowngrade('basic_monthly')}
+              >
+                {actionLoading ? 'Aguarde...' : 'Migrar para Basic'}
+              </Button>
             </div>
           )}
         </div>
-      )}
 
-      {/* Trial — CTA */}
-      {inTrial && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-          <p className="text-sm font-semibold text-foreground">Assinar antes do trial expirar</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Mantenha acesso Pro sem interrupção.
-          </p>
-          <Button
-            className="mt-3 w-full"
-            disabled={actionLoading}
-            onClick={() => handleUpgrade('pro_monthly')}
-          >
-            {actionLoading ? 'Aguarde...' : 'Assinar Pro — R$49,90/mês'}
-          </Button>
+        {/* Card Pro */}
+        <div className={cn(
+          'flex flex-col rounded-xl border p-5',
+          isPro
+            ? 'border-primary/40 ring-1 ring-primary/20 bg-primary/5'
+            : 'border-border bg-card',
+        )}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pro</p>
+              <div className="mt-1 flex items-baseline gap-0.5">
+                <span className="text-2xl font-bold text-foreground">R$49,90</span>
+                <span className="text-sm text-muted-foreground">/mês</span>
+              </div>
+            </div>
+            {isPro && (
+              <span className={cn(
+                'rounded-full px-2.5 py-1 text-xs font-semibold',
+                inTrial
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  : 'bg-primary/10 text-primary',
+              )}>
+                {inTrial ? `Trial · ${trialDaysLeft}d` : 'Plano atual'}
+              </span>
+            )}
+          </div>
+
+          {inTrial && profile?.trial_ends_at && (
+            <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+              Expira em {new Date(profile.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+            </p>
+          )}
+          {isPro && !inTrial && currentPeriodEnd && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Renova em {new Date(currentPeriodEnd + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </p>
+          )}
+
+          <ul className="mt-4 flex-1 space-y-2 text-sm">
+            {['Contas ilimitadas', 'Histórico ilimitado', 'Categorização IA', 'Dashboard + Comparativos', 'Chat IA (200 msgs/mês)', 'Entrada por áudio'].map((f) => (
+              <li key={f} className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-emerald-500 text-xs">✓</span>{f}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-5 border-t border-border pt-4 space-y-2">
+            {/* Basic → upgrade para Pro */}
+            {isBasic && !inTrial && (
+              <>
+                <Button className="w-full" disabled={actionLoading} onClick={() => handleUpgrade('pro_monthly', true)}>
+                  {actionLoading ? 'Aguarde...' : 'Testar Pro 7 dias grátis'}
+                </Button>
+                <Button variant="outline" className="w-full" disabled={actionLoading} onClick={() => handleUpgrade('pro_monthly', false)}>
+                  {actionLoading ? 'Aguarde...' : 'Assinar Pro — R$49,90/mês'}
+                </Button>
+              </>
+            )}
+
+            {/* Trial → toggle gerenciar */}
+            {inTrial && (
+              <>
+                {!showManageOptions ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowManageOptions(true)}
+                    className="w-full rounded-lg border border-border py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Gerenciar período de teste
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      disabled={actionLoading}
+                      onClick={() => void handleEndTrial()}
+                    >
+                      {actionLoading ? 'Aguarde...' : 'Converter para assinatura — R$49,90/mês'}
+                    </Button>
+                    {!cancelConfirm ? (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => setCancelConfirm(true)}
+                        className="w-full py-1.5 text-center text-sm text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                      >
+                        Cancelar período de teste
+                      </button>
+                    ) : (
+                      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          O trial será cancelado e você perderá o acesso Pro.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button variant="destructive" size="sm" className="flex-1" disabled={actionLoading} onClick={handleCancelSubscription}>
+                            {actionLoading ? 'Cancelando...' : 'Confirmar'}
+                          </Button>
+                          <Button variant="outline" size="sm" className="flex-1" disabled={actionLoading} onClick={() => { setCancelConfirm(false); setShowManageOptions(false); }}>
+                            Fechar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Pro ativo → cancelar */}
+            {isPro && !inTrial && (
+              <>
+                {!cancelConfirm ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
+                    disabled={actionLoading}
+                    onClick={() => setCancelConfirm(true)}
+                  >
+                    Cancelar assinatura
+                  </Button>
+                ) : (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Seu acesso Pro continua até o fim do período já pago.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="destructive" size="sm" className="flex-1" disabled={actionLoading} onClick={handleCancelSubscription}>
+                        {actionLoading ? 'Cancelando...' : 'Confirmar'}
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1" disabled={actionLoading} onClick={() => setCancelConfirm(false)}>
+                        Manter
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
       {actionError && (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -546,7 +573,6 @@ function DadosTab() {
         throw new Error(data.error ?? 'Erro ao excluir conta');
       }
       const supabase = createClient();
-      Sentry.setUser(null);
       await supabase.auth.signOut();
       router.push('/login?deleted=true');
     } catch (err) {

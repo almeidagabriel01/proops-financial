@@ -1,17 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { getAuthError } from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 
-export default function SignupPage() {
+function SignupPageContent() {
+  const searchParams = useSearchParams();
+  const pendingPlan = searchParams.get('plan') ?? '';
+  const pendingIntent = searchParams.get('intent') ?? '';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  function buildCallbackUrl() {
+    const base = `${window.location.origin}/callback`;
+    if (!pendingPlan) return base;
+    const params = new URLSearchParams({ plan: pendingPlan, intent: pendingIntent });
+    return `${base}?${params.toString()}`;
+  }
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -29,15 +41,19 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/callback`,
+          emailRedirectTo: buildCallbackUrl(),
+          data: {
+            pending_plan: pendingPlan || undefined,
+            pending_intent: pendingIntent || undefined,
+          },
         },
       });
-      if (error) {
-        setError(getAuthError(error.message));
+      if (signUpError) {
+        setError(getAuthError(signUpError.message));
         return;
       }
       setSuccess(true);
@@ -53,14 +69,14 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/callback`,
+          redirectTo: buildCallbackUrl(),
         },
       });
-      if (error) {
-        setError(getAuthError(error.message));
+      if (oauthError) {
+        setError(getAuthError(oauthError.message));
         setLoading(false);
       }
     } catch {
@@ -179,7 +195,7 @@ export default function SignupPage() {
             )}
 
             <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading ? 'Criando conta...' : 'Criar conta gratuita'}
+              {loading ? 'Criando conta...' : 'Criar conta'}
             </Button>
           </form>
         </div>
@@ -204,6 +220,14 @@ export default function SignupPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupPageContent />
+    </Suspense>
   );
 }
 

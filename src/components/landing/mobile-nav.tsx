@@ -64,11 +64,11 @@ export function MobileMenuButton() {
               </li>
               <li>
                 <Link
-                  href="/signup"
+                  href="/signup?plan=pro_monthly&intent=trial"
                   onClick={() => setOpen(false)}
                   className="flex h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
                 >
-                  Começar grátis
+                  Testar Pro grátis
                 </Link>
               </li>
             </ul>
