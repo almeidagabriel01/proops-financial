@@ -226,12 +226,43 @@ html.transitioning *::after {
 .scroll-delay-3 { transition-delay: 240ms; }
 .scroll-delay-4 { transition-delay: 320ms; }
 
+/* Auth page — slide GPU-acelerado via transform */
+@media (min-width: 1024px) {
+  .auth-panel-branding,
+  .auth-panel-form {
+    width: 50vw;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  /* Transição só ativa após montagem (evita flash inicial) */
+  .auth-container[data-mounted="true"] .auth-panel-branding,
+  .auth-container[data-mounted="true"] .auth-panel-form {
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Signup: branding vai pra direita, form vai pra esquerda */
+  .auth-container[data-reversed="true"] .auth-panel-branding {
+    transform: translate3d(100%, 0, 0);
+  }
+  .auth-container[data-reversed="true"] .auth-panel-form {
+    transform: translate3d(-100%, 0, 0);
+  }
+
+  /* Login: posição padrão */
+  .auth-container[data-reversed="false"] .auth-panel-branding,
+  .auth-container[data-reversed="false"] .auth-panel-form {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 /* View Transitions API — circular reveal do theme toggle */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
 }
+
 
 ::view-transition-new(root) {
   z-index: 9999;
