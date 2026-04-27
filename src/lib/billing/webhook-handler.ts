@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
+import { getStripe } from '@/lib/billing/stripe';
 
 // Grace period: 3 days after invoice.payment_failed before revoking access
 const GRACE_PERIOD_DAYS = 3;
@@ -26,7 +27,6 @@ export async function handleStripeWebhook(
         ? session.subscription
         : session.subscription.id;
 
-      // Find user by stripe_customer_id
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -38,29 +38,73 @@ export async function handleStripeWebhook(
         break;
       }
 
+      // Fetch actual subscription to get real status (not hardcoded 'active')
+      const subscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
+      const status = mapStripeStatus(subscription.status);
+
       await supabase.from('subscriptions').upsert(
         {
           user_id: profile.id,
           stripe_subscription_id: stripeSubscriptionId,
           billing_cycle: resolveBillingCycle(session),
-          status: 'active',
+          status,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'stripe_subscription_id' }
       );
+
+      // Sync trial_ends_at if in trial
+      if (subscription.status === 'trialing' && subscription.trial_end) {
+        await supabase
+          .from('profiles')
+          .update({ trial_ends_at: new Date(subscription.trial_end * 1000).toISOString() })
+          .eq('id', profile.id);
+      } else {
+        // Not a trial — clear any legacy trial marker
+        await supabase
+          .from('profiles')
+          .update({ trial_ends_at: null })
+          .eq('id', profile.id);
+      }
       break;
     }
 
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
       const status = mapStripeStatus(sub.status);
+      const item = sub.items.data[0];
+      const periodUpdate = item
+        ? {
+            current_period_start: new Date(item.current_period_start * 1000).toISOString().split('T')[0],
+            current_period_end: new Date(item.current_period_end * 1000).toISOString().split('T')[0],
+          }
+        : {};
+
       const { data: rows } = await supabase
         .from('subscriptions')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status, ...periodUpdate, updated_at: new Date().toISOString() })
         .eq('stripe_subscription_id', sub.id)
-        .select('id');
+        .select('user_id');
+
       if (!rows?.length) {
-        console.warn(`[webhook] customer.subscription.updated: no subscription found for ${sub.id}`);
+        // Row não existe ainda (race com checkout.session.completed) — lança erro
+        // para que o route retorne 500 e o Stripe reenvie o evento.
+        throw new Error(`[webhook] customer.subscription.updated: no row for ${sub.id}`);
+      }
+
+      const userId = rows[0].user_id as string;
+
+      if (sub.status === 'trialing' && sub.trial_end) {
+        await supabase
+          .from('profiles')
+          .update({ trial_ends_at: new Date(sub.trial_end * 1000).toISOString() })
+          .eq('id', userId);
+      } else if (sub.status === 'active') {
+        // Trial ended or immediate subscription — clear trial marker
+        await supabase
+          .from('profiles')
+          .update({ trial_ends_at: null })
+          .eq('id', userId);
       }
       break;
     }
@@ -102,13 +146,16 @@ export async function handleStripeWebhook(
   }
 }
 
-function mapStripeStatus(
+// Maps Stripe subscription status to our internal subscriptions.status values.
+// Preserves 'trialing' as a distinct value (previously collapsed into 'active').
+export function mapStripeStatus(
   stripeStatus: Stripe.Subscription.Status
-): 'active' | 'past_due' | 'canceled' | 'expired' | 'pending' {
+): 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending' {
   switch (stripeStatus) {
     case 'active':
-    case 'trialing':
       return 'active';
+    case 'trialing':
+      return 'trialing';
     case 'past_due':
     case 'unpaid':
       return 'past_due';
@@ -122,8 +169,6 @@ function mapStripeStatus(
 }
 
 function resolveBillingCycle(session: Stripe.Checkout.Session): 'monthly' | 'annual' {
-  // Stripe doesn't expose interval directly on session — use metadata if set,
-  // otherwise default to 'monthly' (webhook customer.subscription.updated will correct it)
   const cycle = session.metadata?.billing_cycle;
   if (cycle === 'annual') return 'annual';
   return 'monthly';

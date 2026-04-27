@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs';
+
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { parseOFX } from '@/lib/parsers/ofx-parser';
@@ -44,9 +44,6 @@ export async function POST(request: Request) {
     console.warn('[import] Etapa 1: user not found');
     return Response.json({ error: 'Não autorizado' }, { status: 401 });
   }
-
-  // Set Sentry user context
-  Sentry.setUser({ id: user.id });
 
   // ── Etapa 1.5: Verificação de limite de contas (server-side) ──
   const { data: profile } = await supabase

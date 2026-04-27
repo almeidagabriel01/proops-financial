@@ -13,6 +13,7 @@ export type Database = {
           plan: 'basic' | 'pro';
           trial_ends_at: string | null;
           stripe_customer_id: string | null;
+          subscription_status: string | null;
           audio_enabled: boolean;
           ai_queries_this_month: number;
           ai_queries_reset_at: string;
@@ -26,6 +27,7 @@ export type Database = {
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           stripe_customer_id?: string | null;
+          subscription_status?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -39,6 +41,7 @@ export type Database = {
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           stripe_customer_id?: string | null;
+          subscription_status?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -694,7 +697,7 @@ export type Database = {
           user_id: string;
           stripe_subscription_id: string | null;
           billing_cycle: 'monthly' | 'annual';
-          status: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start: string | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
@@ -706,7 +709,7 @@ export type Database = {
           user_id: string;
           stripe_subscription_id?: string | null;
           billing_cycle: 'monthly' | 'annual';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
@@ -717,8 +720,8 @@ export type Database = {
           id?: string;
           user_id?: string;
           stripe_subscription_id?: string | null;
-          billing_cycle?: 'monthly' | 'yearly';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          billing_cycle?: 'monthly' | 'annual';
+          status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;

@@ -89,10 +89,10 @@ function LandingNav() {
             Entrar
           </Link>
           <Link
-            href="/signup"
+            href="/signup?plan=pro_monthly&intent=trial"
             className="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
           >
-            Começar grátis
+            Testar Pro grátis
           </Link>
         </div>
 
@@ -138,10 +138,10 @@ function HeroSection() {
           className="mb-16 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
           <Link
-            href="/signup"
+            href="/signup?plan=pro_monthly&intent=trial"
             className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 hover:shadow-lg dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 sm:w-auto"
           >
-            Começar grátis
+            Testar Pro grátis
           </Link>
           <a
             href="#como-funciona"
@@ -502,7 +502,7 @@ function PricingSection() {
           <h2 className="mb-3 text-4xl font-bold tracking-tighter text-zinc-950 dark:text-white sm:text-5xl">
             Preço justo, sem surpresas.
           </h2>
-          <p className="text-zinc-500 dark:text-zinc-400">7 dias grátis, cancele quando quiser.</p>
+          <p className="text-zinc-500 dark:text-zinc-400">Pro com 7 dias de trial. Basic sem trial, assine direto.</p>
         </FadeUp>
 
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 sm:items-start">
@@ -522,10 +522,10 @@ function PricingSection() {
               Controle financeiro completo sem complicação.
             </p>
             <Link
-              href="/signup"
+              href="/signup?plan=basic_monthly&intent=paid"
               className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-300 bg-white text-sm font-semibold text-zinc-950 transition-all hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
             >
-              Começar trial gratuito
+              Assinar Basic
             </Link>
             <ul className="flex flex-col gap-3">
               {BASIC_FEATURES.map((f) => (
@@ -560,12 +560,20 @@ function PricingSection() {
             <p className="mb-6 text-sm text-zinc-400 dark:text-zinc-600">
               O assistente financeiro completo com IA avançada.
             </p>
-            <Link
-              href="/signup"
-              className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950 transition-all hover:scale-[1.01] hover:bg-zinc-100 hover:shadow-lg dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
-            >
-              Começar trial gratuito
-            </Link>
+            <div className="mb-6 flex flex-col gap-2">
+              <Link
+                href="/signup?plan=pro_monthly&intent=trial"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950 transition-all hover:scale-[1.01] hover:bg-zinc-100 hover:shadow-lg dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
+              >
+                Testar 7 dias grátis
+              </Link>
+              <Link
+                href="/signup?plan=pro_monthly&intent=paid"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-700 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white dark:border-zinc-300 dark:text-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-950"
+              >
+                Assinar agora
+              </Link>
+            </div>
             <ul className="flex flex-col gap-3">
               {PRO_FEATURES.map((f) => (
                 <li
@@ -621,13 +629,13 @@ function CtaFinalSection() {
           Comece hoje.
         </h2>
         <p className="mb-8 text-lg text-zinc-500 dark:text-zinc-400">
-          7 dias grátis. Sem cartão de crédito.
+          7 dias de trial no Pro. Cancele quando quiser.
         </p>
         <Link
-          href="/signup"
+          href="/signup?plan=pro_monthly&intent=trial"
           className="inline-flex h-12 items-center justify-center rounded-xl bg-zinc-950 px-10 text-base font-bold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 hover:shadow-xl dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
         >
-          Criar conta grátis
+          Testar Pro 7 dias grátis
         </Link>
       </FadeUp>
     </section>

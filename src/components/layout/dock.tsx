@@ -17,8 +17,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import * as Sentry from '@sentry/nextjs';
-
 const items = [
   { href: '/dashboard', icon: BarChart2, label: 'Início' },
   { href: '/transactions', icon: CreditCard, label: 'Transações' },
@@ -62,7 +60,6 @@ export function Dock() {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    Sentry.setUser(null);
     router.push('/login');
     router.refresh();
   }

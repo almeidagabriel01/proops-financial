@@ -20,9 +20,10 @@ interface AppShellProps {
   userEmail?: string;
   userPlan?: string | null;
   userTrialEndsAt?: string | null;
+  userSubscriptionStatus?: string | null;
 }
 
-export function AppShell({ children, showOnboardingBanner, userName, userEmail, userPlan, userTrialEndsAt }: AppShellProps) {
+export function AppShell({ children, showOnboardingBanner, userName, userEmail, userPlan, userTrialEndsAt, userSubscriptionStatus }: AppShellProps) {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       {/* Header mobile */}
@@ -56,6 +57,7 @@ export function AppShell({ children, showOnboardingBanner, userName, userEmail, 
             userEmail={userEmail}
             userPlan={userPlan}
             userTrialEndsAt={userTrialEndsAt}
+            userSubscriptionStatus={userSubscriptionStatus}
           />
         </div>
       </header>
