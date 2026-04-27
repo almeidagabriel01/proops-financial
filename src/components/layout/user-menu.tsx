@@ -15,9 +15,10 @@ interface UserMenuProps {
   userTrialEndsAt?: string | null;
 }
 
-function getPlanLabel(plan?: string | null, trialEndsAt?: string | null): { label: string; variant: 'pro' | 'trial' | 'free' } {
+function getPlanLabel(plan?: string | null, trialEndsAt?: string | null): { label: string; variant: 'pro' | 'trial' | 'basic' | 'free' } {
   if (plan === 'pro') return { label: 'Pro', variant: 'pro' };
   if (trialEndsAt && new Date(trialEndsAt) > new Date()) return { label: 'Trial Pro', variant: 'trial' };
+  if (plan === 'basic') return { label: 'Basic', variant: 'basic' };
   return { label: 'Grátis', variant: 'free' };
 }
 
@@ -81,7 +82,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: Use
               'mt-0.5 text-[10px] font-semibold',
               planVariant === 'pro' && 'text-primary',
               planVariant === 'trial' && 'text-amber-500 dark:text-amber-400',
-              planVariant === 'free' && 'text-muted-foreground',
+              (planVariant === 'basic' || planVariant === 'free') && 'text-muted-foreground',
             )}
           >
             {planLabel}
@@ -111,7 +112,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: Use
                 'mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold',
                 planVariant === 'pro' && 'bg-primary/10 text-primary',
                 planVariant === 'trial' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-                planVariant === 'free' && 'bg-muted text-muted-foreground',
+                (planVariant === 'basic' || planVariant === 'free') && 'bg-muted text-muted-foreground',
               )}
             >
               {planLabel}
