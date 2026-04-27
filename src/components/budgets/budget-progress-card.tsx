@@ -1,6 +1,7 @@
 'use client';
 
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
@@ -10,11 +11,12 @@ import type { Budget } from '@/hooks/use-budgets';
 
 interface BudgetProgressCardProps {
   budget: Budget;
+  currentMonth: string;
   onEdit: (budget: Budget) => void;
   onDelete: (id: string) => void;
 }
 
-export function BudgetProgressCard({ budget, onEdit, onDelete }: BudgetProgressCardProps) {
+export function BudgetProgressCard({ budget, currentMonth, onEdit, onDelete }: BudgetProgressCardProps) {
   const config = getCategoryConfig(budget.category);
   const Icon = config.icon;
   const isOverBudget = budget.spent > budget.monthly_limit;
@@ -78,6 +80,14 @@ export function BudgetProgressCard({ budget, onEdit, onDelete }: BudgetProgressC
           </span>
         </div>
       </div>
+
+      <Link
+        href={`/transactions?category=${budget.category}&type=debit&month=${currentMonth}`}
+        className="mt-3 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Ver transações
+        <ArrowRight className="h-3 w-3" />
+      </Link>
     </Card>
   );
 }

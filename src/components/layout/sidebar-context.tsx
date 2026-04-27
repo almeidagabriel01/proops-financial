@@ -1,43 +1,25 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 interface SidebarContextValue {
   collapsed: boolean;
-  setCollapsed: (value: boolean) => void;
   toggle: () => void;
 }
 
-const SidebarContext = createContext<SidebarContextValue>({
-  collapsed: false,
-  setCollapsed: () => {},
-  toggle: () => {},
-});
-
-export function useSidebar() {
-  return useContext(SidebarContext);
-}
+const SidebarContext = createContext<SidebarContextValue | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsedState] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('sidebar-collapsed');
-    if (stored !== null) queueMicrotask(() => setCollapsedState(stored === 'true'));
-  }, []);
-
-  function setCollapsed(value: boolean) {
-    setCollapsedState(value);
-    localStorage.setItem('sidebar-collapsed', String(value));
-  }
-
-  function toggle() {
-    setCollapsed(!collapsed);
-  }
-
+  const [collapsed, setCollapsed] = useState(false);
   return (
-    <SidebarContext.Provider value={{ collapsed, setCollapsed, toggle }}>
+    <SidebarContext.Provider value={{ collapsed, toggle: () => setCollapsed((v) => !v) }}>
       {children}
     </SidebarContext.Provider>
   );
+}
+
+export function useSidebar(): SidebarContextValue {
+  const ctx = useContext(SidebarContext);
+  if (!ctx) throw new Error('useSidebar must be used within SidebarProvider');
+  return ctx;
 }

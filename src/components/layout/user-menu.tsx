@@ -19,7 +19,7 @@ function getPlanLabel(
   plan?: string | null,
   trialEndsAt?: string | null,
   subscriptionStatus?: string | null
-): { label: string; variant: 'pro' | 'trial' | 'free' } {
+): { label: string; variant: 'pro' | 'trial' | 'basic' | 'free' } {
   // subscription_status é a fonte primária (espelha Stripe exato)
   if (subscriptionStatus === 'trialing') return { label: 'Trial Pro', variant: 'trial' };
   // Fallback para usuários sem subscription_status (legado ou antes da migração)
@@ -27,6 +27,7 @@ function getPlanLabel(
     return { label: 'Trial Pro', variant: 'trial' };
   }
   if (plan === 'pro') return { label: 'Pro', variant: 'pro' };
+  if (plan === 'basic') return { label: 'Basic', variant: 'basic' };
   return { label: 'Grátis', variant: 'free' };
 }
 
@@ -89,7 +90,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt, userS
               'mt-0.5 text-[10px] font-semibold',
               planVariant === 'pro' && 'text-primary',
               planVariant === 'trial' && 'text-amber-500 dark:text-amber-400',
-              planVariant === 'free' && 'text-muted-foreground',
+              (planVariant === 'basic' || planVariant === 'free') && 'text-muted-foreground',
             )}
           >
             {planLabel}
@@ -119,7 +120,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt, userS
                 'mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold',
                 planVariant === 'pro' && 'bg-primary/10 text-primary',
                 planVariant === 'trial' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-                planVariant === 'free' && 'bg-muted text-muted-foreground',
+                (planVariant === 'basic' || planVariant === 'free') && 'bg-muted text-muted-foreground',
               )}
             >
               {planLabel}
