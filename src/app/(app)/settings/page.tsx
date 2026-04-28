@@ -438,7 +438,7 @@ function PlanTab() {
           )}
           {isPro && !inTrial && currentPeriodEnd && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Renova em {new Date(currentPeriodEnd + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              Renova em {new Date(currentPeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           )}
 

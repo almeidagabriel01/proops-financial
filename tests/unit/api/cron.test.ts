@@ -38,7 +38,7 @@ describe('POST /api/cron/check-budgets — autenticação CRON_SECRET', () => {
   });
 
   it('rejeita token incorreto', () => {
-    const authHeader = 'Bearer wrong-secret';
+    const authHeader: string = 'Bearer wrong-secret';
     const isAuthorized = authHeader === `Bearer ${CRON_SECRET}`;
     expect(isAuthorized).toBe(false);
   });
@@ -50,7 +50,7 @@ describe('POST /api/cron/check-budgets — autenticação CRON_SECRET', () => {
   });
 
   it('rejeita Bearer vazio', () => {
-    const authHeader = 'Bearer ';
+    const authHeader: string = 'Bearer ';
     const isAuthorized = authHeader === `Bearer ${CRON_SECRET}`;
     expect(isAuthorized).toBe(false);
   });
@@ -115,8 +115,10 @@ describe('check-budget-alerts — formatação das mensagens push', () => {
   });
 
   it('título correto por threshold', () => {
-    expect(80 === 80 ? 'Orçamento em 80%' : 'Orçamento estourado!').toBe('Orçamento em 80%');
-    expect(100 === 80 ? 'Orçamento em 80%' : 'Orçamento estourado!').toBe('Orçamento estourado!');
+    const threshold80: number = 80;
+    const threshold100: number = 100;
+    expect(threshold80 === 80 ? 'Orçamento em 80%' : 'Orçamento estourado!').toBe('Orçamento em 80%');
+    expect(threshold100 === 80 ? 'Orçamento em 80%' : 'Orçamento estourado!').toBe('Orçamento estourado!');
   });
 
   it('categoria desconhecida usa o próprio slug como fallback', () => {

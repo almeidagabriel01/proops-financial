@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { MobileMenuButton } from '@/components/landing/mobile-nav';
+import { LandingUserMenu } from '@/components/landing/landing-user-menu';
 import {
   HeroFade,
   FadeUp,
@@ -48,17 +49,37 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) redirect('/dashboard');
+  let isLoggedInFree = false;
+  let userEmail = '';
+
+  if (user) {
+    const [{ data: activeSub }, { data: profile }] = await Promise.all([
+      supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trialing'])
+        .limit(1)
+        .single(),
+      supabase.from('profiles').select('plan, trial_ends_at').eq('id', user.id).single(),
+    ]);
+
+    const hasAccess = activeSub != null || profile?.plan === 'pro';
+
+    if (hasAccess) redirect('/dashboard');
+    isLoggedInFree = true;
+    userEmail = user.email ?? '';
+  }
 
   return (
     <div className="min-h-dvh bg-white text-zinc-950 dark:bg-zinc-950 dark:text-white">
-      <LandingNav />
+      <LandingNav isLoggedIn={isLoggedInFree} userEmail={userEmail} />
       <main>
-        <HeroSection />
+        <HeroSection isLoggedIn={isLoggedInFree} />
         <HowItWorksSection />
         <FeaturesSection />
-        <PricingSection />
-        <CtaFinalSection />
+        <PricingSection isLoggedIn={isLoggedInFree} />
+        <CtaFinalSection isLoggedIn={isLoggedInFree} />
       </main>
       <LandingFooter />
     </div>
@@ -69,7 +90,7 @@ export default async function HomePage() {
    NAV
 ══════════════════════════════════════════════════════════════ */
 
-function LandingNav() {
+function LandingNav({ isLoggedIn, userEmail }: { isLoggedIn: boolean; userEmail: string }) {
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200/60 bg-white/80 backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/80">
       <div className="relative mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -82,18 +103,32 @@ function LandingNav() {
 
         <div className="hidden items-center gap-2 sm:flex">
           <ThemeToggle />
-          <Link
-            href="/login"
-            className="inline-flex h-9 items-center rounded-lg px-4 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
-          >
-            Entrar
-          </Link>
-          <Link
-            href="/signup?plan=pro_monthly&intent=trial"
-            className="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
-          >
-            Testar Pro grátis
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/checkout/redirect?plan=pro_monthly&intent=trial"
+                className="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+              >
+                Testar Pro grátis
+              </Link>
+              <LandingUserMenu email={userEmail} />
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="inline-flex h-9 items-center rounded-lg px-4 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
+              >
+                Entrar
+              </Link>
+              <Link
+                href="/signup?plan=pro_monthly&intent=trial"
+                className="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+              >
+                Testar Pro grátis
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1 sm:hidden">
@@ -109,7 +144,7 @@ function LandingNav() {
    HERO
 ══════════════════════════════════════════════════════════════ */
 
-function HeroSection() {
+function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
     <section className="overflow-hidden px-4 pb-0 pt-16 sm:pt-24 lg:pt-32">
       <div className="mx-auto max-w-5xl">
@@ -138,7 +173,7 @@ function HeroSection() {
           className="mb-16 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
           <Link
-            href="/signup?plan=pro_monthly&intent=trial"
+            href={`${isLoggedIn ? '/checkout/redirect' : '/signup'}?plan=pro_monthly&intent=trial`}
             className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 hover:shadow-lg dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 sm:w-auto"
           >
             Testar Pro grátis
@@ -491,7 +526,7 @@ const PRO_FEATURES = [
   'Suporte prioritário',
 ];
 
-function PricingSection() {
+function PricingSection({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
     <section id="precos" className="px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl">
@@ -522,7 +557,7 @@ function PricingSection() {
               Controle financeiro completo sem complicação.
             </p>
             <Link
-              href="/signup?plan=basic_monthly&intent=paid"
+              href={`${isLoggedIn ? '/checkout/redirect' : '/signup'}?plan=basic_monthly&intent=paid`}
               className="mb-6 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-300 bg-white text-sm font-semibold text-zinc-950 transition-all hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
             >
               Assinar Basic
@@ -562,13 +597,13 @@ function PricingSection() {
             </p>
             <div className="mb-6 flex flex-col gap-2">
               <Link
-                href="/signup?plan=pro_monthly&intent=trial"
+                href={`${isLoggedIn ? '/checkout/redirect' : '/signup'}?plan=pro_monthly&intent=trial`}
                 className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950 transition-all hover:scale-[1.01] hover:bg-zinc-100 hover:shadow-lg dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
               >
                 Testar 7 dias grátis
               </Link>
               <Link
-                href="/signup?plan=pro_monthly&intent=paid"
+                href={`${isLoggedIn ? '/checkout/redirect' : '/signup'}?plan=pro_monthly&intent=paid`}
                 className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-700 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white dark:border-zinc-300 dark:text-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-950"
               >
                 Assinar agora
@@ -621,7 +656,7 @@ function CheckMark({ inverted = false }: { inverted?: boolean }) {
    CTA FINAL
 ══════════════════════════════════════════════════════════════ */
 
-function CtaFinalSection() {
+function CtaFinalSection({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
     <section className="px-4 py-20 sm:py-28">
       <FadeUp className="mx-auto max-w-2xl text-center">
@@ -632,7 +667,7 @@ function CtaFinalSection() {
           7 dias de trial no Pro. Cancele quando quiser.
         </p>
         <Link
-          href="/signup?plan=pro_monthly&intent=trial"
+          href={`${isLoggedIn ? '/checkout/redirect' : '/signup'}?plan=pro_monthly&intent=trial`}
           className="inline-flex h-12 items-center justify-center rounded-xl bg-zinc-950 px-10 text-base font-bold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 hover:shadow-xl dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
         >
           Testar Pro 7 dias grátis

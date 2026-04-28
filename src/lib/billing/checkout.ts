@@ -50,7 +50,7 @@ export async function createCheckoutSession(
     customer: stripeCustomerId,
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/api/checkout/sync-success`,
+    success_url: `${appUrl}/api/checkout/sync-success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/settings?tab=plano&checkout=canceled`,
     metadata: { billing_cycle: billingCycle, with_trial: String(applyTrial) },
     payment_method_collection: 'always',

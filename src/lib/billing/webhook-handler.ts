@@ -1,6 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
-import { getStripe } from '@/lib/billing/stripe';
+import { getStripe, STRIPE_PRICE_IDS } from '@/lib/billing/stripe';
+
+// Determines plan tier from Stripe price ID.
+// Defaults to 'pro' if price ID is unknown (safe fallback).
+export function getPlanTierFromPriceId(priceId: string | undefined): 'basic' | 'pro' {
+  if (!priceId) return 'pro';
+  const basicIds = [STRIPE_PRICE_IDS.basic_monthly, STRIPE_PRICE_IDS.basic_annual].filter(Boolean);
+  return basicIds.includes(priceId) ? 'basic' : 'pro';
+}
 
 // Grace period: 3 days after invoice.payment_failed before revoking access
 const GRACE_PERIOD_DAYS = 3;
@@ -41,6 +49,8 @@ export async function handleStripeWebhook(
       // Fetch actual subscription to get real status (not hardcoded 'active')
       const subscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
       const status = mapStripeStatus(subscription.status);
+      const priceId = subscription.items.data[0]?.price.id;
+      const planTier = getPlanTierFromPriceId(priceId);
 
       await supabase.from('subscriptions').upsert(
         {
@@ -53,17 +63,27 @@ export async function handleStripeWebhook(
         { onConflict: 'stripe_subscription_id' }
       );
 
-      // Sync trial_ends_at if in trial
+      // Sync plan tier + trial state explicitly (DB trigger sets plan='pro' blindly — override it)
       if (subscription.status === 'trialing' && subscription.trial_end) {
         await supabase
           .from('profiles')
-          .update({ trial_ends_at: new Date(subscription.trial_end * 1000).toISOString() })
+          .update({
+            plan: planTier,
+            audio_enabled: planTier === 'pro',
+            trial_ends_at: new Date(subscription.trial_end * 1000).toISOString(),
+            subscription_status: 'trialing',
+          })
           .eq('id', profile.id);
       } else {
         // Not a trial — clear any legacy trial marker
         await supabase
           .from('profiles')
-          .update({ trial_ends_at: null })
+          .update({
+            plan: planTier,
+            audio_enabled: planTier === 'pro',
+            trial_ends_at: null,
+            subscription_status: 'active',
+          })
           .eq('id', profile.id);
       }
       break;
@@ -94,16 +114,29 @@ export async function handleStripeWebhook(
 
       const userId = rows[0].user_id as string;
 
+      const subPriceId = sub.items.data[0]?.price.id;
+      const subPlanTier = getPlanTierFromPriceId(subPriceId);
+
       if (sub.status === 'trialing' && sub.trial_end) {
         await supabase
           .from('profiles')
-          .update({ trial_ends_at: new Date(sub.trial_end * 1000).toISOString() })
+          .update({
+            plan: subPlanTier,
+            audio_enabled: subPlanTier === 'pro',
+            trial_ends_at: new Date(sub.trial_end * 1000).toISOString(),
+            subscription_status: 'trialing',
+          })
           .eq('id', userId);
       } else if (sub.status === 'active') {
         // Trial ended or immediate subscription — clear trial marker
         await supabase
           .from('profiles')
-          .update({ trial_ends_at: null })
+          .update({
+            plan: subPlanTier,
+            audio_enabled: subPlanTier === 'pro',
+            trial_ends_at: null,
+            subscription_status: 'active',
+          })
           .eq('id', userId);
       }
       break;

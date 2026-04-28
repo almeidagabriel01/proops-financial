@@ -13,40 +13,41 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login');
   }
 
+  // Exclude subscription_status from SELECT: column added by migration 027, which may
+  // not be applied yet — selecting it causes PGRST204 and returns profile=null.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('onboarding_completed, display_name, plan, trial_ends_at, subscription_status')
+    .select('onboarding_completed, display_name, plan, trial_ends_at')
     .eq('id', user.id)
     .single();
 
-  // Paywall check — must run before onboarding to avoid redirect loops
-  // subscription_status é a fonte primária; trial_ends_at é fallback para legado
-  const subStatus = profile?.subscription_status;
+  // Always query subscriptions: authoritative billing state, always populated by webhooks/sync.
+  const { data: activeSub } = await supabase
+    .from('subscriptions')
+    .select('status, updated_at')
+    .eq('user_id', user.id)
+    .in('status', ['active', 'trialing', 'past_due'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  // Paywall check — source of truth is the subscriptions table (Stripe-backed).
+  // profile.plan === 'pro' is a valid fallback: only set by DB trigger on real subscriptions.
+  // trial_ends_at is intentionally excluded: handle_new_user may still populate it even
+  // for users who never paid, making it an unreliable gate.
   const hasDirectAccess =
-    subStatus === 'active' ||
-    subStatus === 'trialing' ||
-    (profile?.trial_ends_at != null && new Date(profile.trial_ends_at) > new Date());
+    activeSub?.status === 'active' ||
+    activeSub?.status === 'trialing' ||
+    profile?.plan === 'pro';
 
-  if (!hasDirectAccess) {
-    // Sem acesso direto: verificar past_due com grace period na tabela subscriptions
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('status, updated_at')
-      .eq('user_id', user.id)
-      .in('status', ['active', 'trialing', 'past_due'])
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
+  const hasPastDueAccess =
+    activeSub?.status === 'past_due' && isWithinGracePeriod(activeSub.updated_at as string);
 
-    const hasAccess = sub && (
-      sub.status === 'active' ||
-      sub.status === 'trialing' ||
-      (sub.status === 'past_due' && isWithinGracePeriod(sub.updated_at as string))
-    );
-
-    if (!hasAccess) {
-      redirect('/paywall');
-    }
+  if (!hasDirectAccess && !hasPastDueAccess) {
+    // Had a trial that expired → paywall to upgrade; no paid plan → landing page
+    const hadExpiredTrial =
+      profile?.trial_ends_at != null && new Date(profile.trial_ends_at) <= new Date();
+    redirect(hadExpiredTrial ? '/paywall' : '/');
   }
 
   const { count: transactionCount } = await supabase
@@ -72,7 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       userEmail={user.email ?? ''}
       userPlan={profile?.plan ?? 'free'}
       userTrialEndsAt={profile?.trial_ends_at ?? null}
-      userSubscriptionStatus={profile?.subscription_status ?? null}
+      userSubscriptionStatus={activeSub?.status ?? null}
     >
       {children}
     </AppShell>

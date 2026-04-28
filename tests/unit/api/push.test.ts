@@ -71,7 +71,7 @@ describe('POST /api/push/send — validação de autorização', () => {
   });
 
   it('rejeita token incorreto', () => {
-    const authHeader = 'Bearer wrong-token';
+    const authHeader: string = 'Bearer wrong-token';
     const expectedToken = `Bearer ${SERVICE_ROLE_KEY}`;
     expect(authHeader === expectedToken).toBe(false);
   });
@@ -83,7 +83,7 @@ describe('POST /api/push/send — validação de autorização', () => {
   });
 
   it('rejeita Bearer vazio', () => {
-    const authHeader = 'Bearer ';
+    const authHeader: string = 'Bearer ';
     const expectedToken = `Bearer ${SERVICE_ROLE_KEY}`;
     expect(authHeader === expectedToken).toBe(false);
   });

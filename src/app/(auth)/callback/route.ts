@@ -33,14 +33,19 @@ export async function GET(request: NextRequest) {
   const { data: { session } } = await supabase.auth.exchangeCodeForSession(code);
 
   // Determine redirect target
-  // Priority: URL params (email flow) → user_metadata (OAuth flow)
+  // Priority: URL params → cookie (OAuth flow) → user_metadata (legacy)
   const planFromUrl = searchParams.get('plan');
   const intentFromUrl = searchParams.get('intent');
   const planFromMeta = session?.user?.user_metadata?.pending_plan as string | undefined;
   const intentFromMeta = session?.user?.user_metadata?.pending_intent as string | undefined;
 
-  const planKey = planFromUrl ?? planFromMeta ?? '';
-  const intent = intentFromUrl ?? intentFromMeta ?? 'paid';
+  const pendingCookieRaw = request.cookies.get('pending_checkout')?.value;
+  const [planFromCookie, intentFromCookie] = pendingCookieRaw
+    ? decodeURIComponent(pendingCookieRaw).split(':')
+    : [undefined, undefined];
+
+  const planKey = planFromUrl ?? planFromCookie ?? planFromMeta ?? '';
+  const intent = intentFromUrl ?? intentFromCookie ?? intentFromMeta ?? 'paid';
 
   let redirectPath = '/dashboard';
   if (planKey && STRIPE_PRICE_IDS[planKey as StripePlanKey]) {
@@ -51,5 +56,9 @@ export async function GET(request: NextRequest) {
   cookieSetters.forEach(({ name, value, options }) =>
     response.cookies.set(name, value, options)
   );
+  // Limpa o cookie de intent após uso
+  if (pendingCookieRaw) {
+    response.cookies.set('pending_checkout', '', { path: '/', maxAge: 0 });
+  }
   return response;
 }

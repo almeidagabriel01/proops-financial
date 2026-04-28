@@ -80,7 +80,9 @@ export function AuthPage({ initialMode }: { initialMode: AuthMode }) {
                     animate={{ opacity: 1, filter: 'blur(0px)', transition: { duration: 0.5, delay: 0.2 } }}
                     exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2 } }}
                   >
-                    <SignupFormContent onSwitchMode={() => switchMode('login')} />
+                    <Suspense>
+                      <SignupFormContent onSwitchMode={() => switchMode('login')} />
+                    </Suspense>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -148,7 +150,7 @@ function LoginFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/callback` },
+        options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin}/callback` },
       });
       if (error) { setError(getAuthError(error.message)); setLoading(false); }
     } catch {
@@ -202,12 +204,24 @@ function LoginFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
 /* ─── Signup form ────────────────────────────────────────── */
 
 function SignupFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get('plan') ?? '';
+  const intentParam = searchParams.get('intent') ?? '';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  const callbackBase = `${process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin}/callback`;
+
+  function setPendingCheckoutCookie() {
+    if (!planParam) return;
+    // Cookie sobrevive ao redirect do OAuth (SameSite=Lax permite top-level navigation cross-site)
+    document.cookie = `pending_checkout=${encodeURIComponent(`${planParam}:${intentParam || 'paid'}`)}; path=/; max-age=600; SameSite=Lax`;
+  }
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -222,10 +236,11 @@ function SignupFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
     }
     setLoading(true);
     try {
+      setPendingCheckoutCookie();
       const supabase = createClient();
       const { error } = await supabase.auth.signUp({
         email, password,
-        options: { emailRedirectTo: `${window.location.origin}/callback` },
+        options: { emailRedirectTo: callbackBase },
       });
       if (error) { setError(getAuthError(error.message)); return; }
       setSuccess(true);
@@ -240,10 +255,11 @@ function SignupFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
     setError('');
     setLoading(true);
     try {
+      setPendingCheckoutCookie();
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/callback` },
+        options: { redirectTo: callbackBase },
       });
       if (error) { setError(getAuthError(error.message)); setLoading(false); }
     } catch {

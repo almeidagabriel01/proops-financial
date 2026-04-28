@@ -22,6 +22,10 @@ function getPlanLabel(
 ): { label: string; variant: 'pro' | 'trial' | 'basic' | 'free' } {
   // subscription_status é a fonte primária (espelha Stripe exato)
   if (subscriptionStatus === 'trialing') return { label: 'Trial Pro', variant: 'trial' };
+  if (subscriptionStatus === 'active') {
+    if (plan === 'basic') return { label: 'Basic', variant: 'basic' };
+    return { label: 'Pro', variant: 'pro' };
+  }
   // Fallback para usuários sem subscription_status (legado ou antes da migração)
   if (!subscriptionStatus && trialEndsAt && new Date(trialEndsAt) > new Date()) {
     return { label: 'Trial Pro', variant: 'trial' };
