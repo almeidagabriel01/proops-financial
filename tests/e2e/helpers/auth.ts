@@ -7,7 +7,7 @@ import type { Page } from '@playwright/test';
 export async function loginAs(page: Page, email: string, password: string): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/senha/i).fill(password);
+  await page.locator('input#password').fill(password);
   await page.getByRole('button', { name: /entrar/i }).click();
   await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
 }

@@ -3,12 +3,13 @@ import type Stripe from 'stripe';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/billing/stripe';
 import { mapStripeStatus, getPlanTierFromPriceId } from '@/lib/billing/webhook-handler';
+import { getAppUrl } from '@/lib/utils/app-url';
 
 // Safety net: called by Stripe success_url redirect.
 // Ensures DB state is consistent even if webhooks are delayed or missed.
 // Uses session_id (Stripe-verified) as primary auth — no cookie dependency.
 export async function GET(request: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getAppUrl();
   const sessionId = request.nextUrl.searchParams.get('session_id');
 
   if (!sessionId) {
