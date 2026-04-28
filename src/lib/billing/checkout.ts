@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getStripe, STRIPE_PRICE_IDS, type StripePlanKey } from '@/lib/billing/stripe';
 import { PRO_PLAN_KEYS } from '@/lib/billing/plans';
+import { getAppUrl } from '@/lib/utils/app-url';
 
 /**
  * Cria uma Stripe Checkout Session e persiste subscription pendente.
@@ -39,7 +40,7 @@ export async function createCheckoutSession(
       .eq('id', userId);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getAppUrl();
   const billingCycle: 'monthly' | 'annual' = planKey.endsWith('_annual') ? 'annual' : 'monthly';
   const priceId = STRIPE_PRICE_IDS[planKey];
 

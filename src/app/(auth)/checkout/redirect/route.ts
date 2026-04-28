@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { STRIPE_PRICE_IDS, type StripePlanKey } from '@/lib/billing/stripe';
 import { PRO_PLAN_KEYS } from '@/lib/billing/plans';
 import { createCheckoutSession } from '@/lib/billing/checkout';
+import { getAppUrl } from '@/lib/utils/app-url';
 
 // GET /checkout/redirect?plan=pro_monthly&intent=trial
 // Server-side redirect to Stripe after email verification + signup intent
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const planKey = searchParams.get('plan') as StripePlanKey | null;
   const intent = searchParams.get('intent');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getAppUrl();
 
   if (!planKey || !STRIPE_PRICE_IDS[planKey]) {
     return NextResponse.redirect(`${appUrl}/dashboard`);
