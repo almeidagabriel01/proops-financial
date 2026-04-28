@@ -92,7 +92,7 @@ export async function handleStripeWebhook(
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
       const status = mapStripeStatus(sub.status);
-      const item = sub.items.data[0];
+      const item = sub.items?.data[0];
       const periodUpdate = item
         ? {
             current_period_start: new Date(item.current_period_start * 1000).toISOString().split('T')[0],
@@ -114,7 +114,7 @@ export async function handleStripeWebhook(
 
       const userId = rows[0].user_id as string;
 
-      const subPriceId = sub.items.data[0]?.price.id;
+      const subPriceId = item?.price.id;
       const subPlanTier = getPlanTierFromPriceId(subPriceId);
 
       if (sub.status === 'trialing' && sub.trial_end) {

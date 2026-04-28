@@ -2,6 +2,23 @@ import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleStripeWebhook, isWithinGracePeriod } from '@/lib/billing/webhook-handler';
 
+vi.mock('@/lib/billing/stripe', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/billing/stripe')>();
+  return {
+    ...original,
+    getStripe: vi.fn().mockReturnValue({
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: 'sub_test',
+          status: 'active',
+          trial_end: null,
+          items: { data: [{ price: { id: 'price_pro_monthly', recurring: { interval: 'month' } } }] },
+        }),
+      },
+    }),
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Supabase mock — chainable AND thenable (awaitable at any point in chain)
 // ---------------------------------------------------------------------------
@@ -146,6 +163,7 @@ describe('handleStripeWebhook — customer.subscription.updated', () => {
     const event = makeEvent('customer.subscription.updated', {
       id: 'sub_stripe_1',
       status: 'active',
+      items: { data: [{ price: { id: 'price_pro_monthly' }, current_period_start: 1700000000, current_period_end: 1702000000 }] },
     });
 
     await handleStripeWebhook(event, supabase);
@@ -156,17 +174,19 @@ describe('handleStripeWebhook — customer.subscription.updated', () => {
     expect(supabase._subChain.eq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_stripe_1');
   });
 
-  it('maps trialing Stripe status to active', async () => {
+  it('maps trialing Stripe status to trialing', async () => {
     const supabase = makeSupabase(null, [{ id: 'sub_local_1' }]);
     const event = makeEvent('customer.subscription.updated', {
       id: 'sub_stripe_2',
       status: 'trialing',
+      trial_end: 1800000000,
+      items: { data: [{ price: { id: 'price_pro_monthly' }, current_period_start: 1700000000, current_period_end: 1702000000 }] },
     });
 
     await handleStripeWebhook(event, supabase);
 
     expect(supabase._subChain.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'active' })
+      expect.objectContaining({ status: 'trialing' })
     );
   });
 
@@ -175,6 +195,7 @@ describe('handleStripeWebhook — customer.subscription.updated', () => {
     const event = makeEvent('customer.subscription.updated', {
       id: 'sub_stripe_3',
       status: 'past_due',
+      items: { data: [{ price: { id: 'price_pro_monthly' }, current_period_start: 1700000000, current_period_end: 1702000000 }] },
     });
 
     await handleStripeWebhook(event, supabase);
