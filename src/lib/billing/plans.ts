@@ -27,7 +27,7 @@ export const PLANS = {
       historyMonths: Infinity,
       aiChat: true,
       aiChatMonthly: 50,
-      aiModel: 'gemini-2.0-flash',
+      aiModel: 'gemini-2.5-flash-lite',
       categoryComparison: true,
       audioEnabled: false,
       functionCalling: false,
@@ -42,7 +42,7 @@ export const PLANS = {
       historyMonths: Infinity,
       aiChat: true,
       aiChatMonthly: 50,
-      aiModel: 'gemini-2.0-flash',
+      aiModel: 'gemini-2.5-flash-lite',
       categoryComparison: true,
       audioEnabled: false,
       functionCalling: false,
@@ -57,7 +57,7 @@ export const PLANS = {
       historyMonths: Infinity,
       aiChat: true,
       aiChatMonthly: 200,
-      aiModel: 'gemini-2.5-flash',
+      aiModel: 'gemini-3.1-flash-lite-preview',
       categoryComparison: true,
       audioEnabled: true,
       functionCalling: true,
@@ -72,7 +72,7 @@ export const PLANS = {
       historyMonths: Infinity,
       aiChat: true,
       aiChatMonthly: 200,
-      aiModel: 'gemini-2.5-flash',
+      aiModel: 'gemini-3.1-flash-lite-preview',
       categoryComparison: true,
       audioEnabled: true,
       functionCalling: true,
@@ -93,7 +93,7 @@ export const PLAN_LIMITS = {
   basic: {
     aiChatMonthly: 50,
     maxBankAccounts: 3,
-    aiModel: 'gemini-2.0-flash',
+    aiModel: 'gemini-2.5-flash-lite',
     audioEnabled: false,
     functionCalling: false,
     // Planejamento financeiro
@@ -102,11 +102,13 @@ export const PLAN_LIMITS = {
     maxGoals: 2,
     cashFlowMonthsAhead: 1,
     recurringAutoDetect: false,
+    // Categorização
+    maxCategorizationRules: 5,
   },
   pro: {
     aiChatMonthly: 200,
     maxBankAccounts: Infinity,
-    aiModel: 'gemini-2.5-flash',
+    aiModel: 'gemini-3.1-flash-lite-preview',
     audioEnabled: true,
     functionCalling: true,
     // Planejamento financeiro
@@ -115,20 +117,26 @@ export const PLAN_LIMITS = {
     maxGoals: Infinity,
     cashFlowMonthsAhead: 12,
     recurringAutoDetect: true,
+    // Categorização
+    maxCategorizationRules: Infinity,
   },
 } as const;
 
 export type PlanTier = keyof typeof PLAN_LIMITS;
 
 /**
- * Retorna o tier efetivo considerando o trial.
+ * Retorna o tier efetivo considerando trial e subscription_status.
  * IMPORTANTE: use apenas no servidor (API routes) para decisões críticas.
  * No cliente, use o hook usePlan() apenas para UX.
+ *
+ * @param subscriptionStatus - quando disponível, tem precedência (espelha Stripe exato)
  */
 export function getEffectiveTier(
   plan: PlanTier,
-  trialEndsAt: string | null
+  trialEndsAt: string | null,
+  subscriptionStatus?: string | null
 ): PlanTier {
+  if (subscriptionStatus === 'trialing' || subscriptionStatus === 'active') return 'pro';
   if (plan === 'pro') return 'pro';
   if (trialEndsAt && new Date(trialEndsAt) > new Date()) return 'pro';
   return 'basic';

@@ -7,6 +7,7 @@ interface UpdateTransactionBody {
   amount?: number;
   type?: 'credit' | 'debit';
   category?: string;
+  notes?: string | null;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +80,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     updates.category = sanitizedCategory;
     updates.category_source = 'user';
+  }
+
+  if (body.notes !== undefined) {
+    if (body.notes !== null && body.notes.length > 500) {
+      return Response.json({ error: 'Nota muito longa (máximo 500 caracteres)' }, { status: 400 });
+    }
+    updates.notes = body.notes;
   }
 
   if (Object.keys(updates).length === 0) {

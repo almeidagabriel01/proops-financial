@@ -28,13 +28,13 @@ export async function GET() {
   const googleAI: DependencyStatus = {
     status: process.env.GOOGLE_AI_API_KEY ? 'configured' : 'missing',
   };
-  const asaas: DependencyStatus = {
-    status: process.env.ASAAS_API_KEY ? 'configured' : 'missing',
+  const stripe: DependencyStatus = {
+    status: process.env.STRIPE_SECRET_KEY ? 'configured' : 'missing',
   };
 
   const allConfigured =
     googleAI.status === 'configured' &&
-    asaas.status === 'configured';
+    stripe.status === 'configured';
 
   const overallStatus =
     supabase.status === 'error'
@@ -50,7 +50,7 @@ export async function GET() {
     dependencies: {
       supabase,
       googleAI,
-      asaas,
+      stripe,
     },
   });
 }

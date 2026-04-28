@@ -8,6 +8,10 @@ import {
   getMonthBounds,
   getPrevMonthBounds,
   groupByWeek,
+  currentYM,
+  maskCurrency,
+  initCurrencyMask,
+  parseCurrencyMask,
 } from '@/lib/utils/format';
 
 describe('normalizeDescription', () => {
@@ -148,6 +152,60 @@ describe('getPrevMonthBounds', () => {
     expect(start).toBe('2023-12-01');
     expect(end).toBe('2023-12-31');
     vi.useRealTimers();
+  });
+});
+
+describe('currentYM', () => {
+  it('retorna string no formato YYYY-MM', () => {
+    const result = currentYM();
+    expect(result).toMatch(/^\d{4}-\d{2}$/);
+  });
+});
+
+describe('maskCurrency', () => {
+  it('formata string de dígitos como moeda BR', () => {
+    expect(maskCurrency('150000')).toBe('1.500,00');
+  });
+
+  it('retorna string vazia quando não há dígitos', () => {
+    expect(maskCurrency('')).toBe('');
+    expect(maskCurrency('abc')).toBe('');
+  });
+
+  it('remove caracteres não numéricos antes de formatar', () => {
+    expect(maskCurrency('R$ 1.000,00')).toBe('1.000,00');
+  });
+});
+
+describe('initCurrencyMask', () => {
+  it('converte valor numérico para máscara', () => {
+    expect(initCurrencyMask(15)).toBe('15,00');
+  });
+
+  it('retorna string vazia para valor nulo', () => {
+    expect(initCurrencyMask(null)).toBe('');
+  });
+
+  it('retorna string vazia para zero', () => {
+    expect(initCurrencyMask(0)).toBe('');
+  });
+
+  it('retorna string vazia para valor negativo', () => {
+    expect(initCurrencyMask(-10)).toBe('');
+  });
+});
+
+describe('parseCurrencyMask', () => {
+  it('converte string mascarada para número', () => {
+    expect(parseCurrencyMask('1.500,00')).toBe(1500);
+  });
+
+  it('retorna 0 para string vazia', () => {
+    expect(parseCurrencyMask('')).toBe(0);
+  });
+
+  it('lida com valor simples sem separador de milhar', () => {
+    expect(parseCurrencyMask('50,00')).toBe(50);
   });
 });
 

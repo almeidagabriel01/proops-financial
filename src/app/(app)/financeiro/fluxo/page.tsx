@@ -150,7 +150,7 @@ export default function FluxoPage() {
             <TrendingDown className="h-4 w-4 shrink-0 text-destructive" />
             <span className="text-xs text-muted-foreground lg:text-sm">A Pagar</span>
           </div>
-          <p className="mt-1 text-base lg:text-2xl lg:mt-2 font-semibold text-destructive">
+          <p className="mt-1 text-sm lg:text-2xl lg:mt-2 font-semibold text-destructive">
             {formatCurrency(totals.aPagar)}
           </p>
         </Card>
@@ -159,7 +159,7 @@ export default function FluxoPage() {
             <TrendingUp className="h-4 w-4 shrink-0 text-green-600" />
             <span className="text-xs text-muted-foreground lg:text-sm">A Receber</span>
           </div>
-          <p className="mt-1 text-base lg:text-2xl lg:mt-2 font-semibold text-green-600 dark:text-green-400">
+          <p className="mt-1 text-sm lg:text-2xl lg:mt-2 font-semibold text-green-600 dark:text-green-400">
             {formatCurrency(totals.aReceber)}
           </p>
         </Card>
@@ -168,7 +168,7 @@ export default function FluxoPage() {
             <Scale className="h-4 w-4 shrink-0 text-primary" />
             <span className="text-xs text-muted-foreground lg:text-sm">Projetado</span>
           </div>
-          <p className={`mt-1 text-base lg:text-2xl lg:mt-2 font-semibold ${totals.saldo >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+          <p className={`mt-1 text-sm lg:text-2xl lg:mt-2 font-semibold ${totals.saldo >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
             {formatCurrency(totals.saldo)}
           </p>
         </Card>

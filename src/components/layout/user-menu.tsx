@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, Settings, ChevronDown } from 'lucide-react';
-import * as Sentry from '@sentry/nextjs';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -13,22 +12,37 @@ interface UserMenuProps {
   userEmail?: string;
   userPlan?: string | null;
   userTrialEndsAt?: string | null;
+  userSubscriptionStatus?: string | null;
 }
 
-function getPlanLabel(plan?: string | null, trialEndsAt?: string | null): { label: string; variant: 'pro' | 'trial' | 'free' } {
-  if (plan === 'premium') return { label: 'Pro', variant: 'pro' };
-  if (trialEndsAt && new Date(trialEndsAt) > new Date()) return { label: 'Trial Pro', variant: 'trial' };
+function getPlanLabel(
+  plan?: string | null,
+  trialEndsAt?: string | null,
+  subscriptionStatus?: string | null
+): { label: string; variant: 'pro' | 'trial' | 'basic' | 'free' } {
+  // subscription_status é a fonte primária (espelha Stripe exato)
+  if (subscriptionStatus === 'trialing') return { label: 'Trial Pro', variant: 'trial' };
+  if (subscriptionStatus === 'active') {
+    if (plan === 'basic') return { label: 'Basic', variant: 'basic' };
+    return { label: 'Pro', variant: 'pro' };
+  }
+  // Fallback para usuários sem subscription_status (legado ou antes da migração)
+  if (!subscriptionStatus && trialEndsAt && new Date(trialEndsAt) > new Date()) {
+    return { label: 'Trial Pro', variant: 'trial' };
+  }
+  if (plan === 'pro') return { label: 'Pro', variant: 'pro' };
+  if (plan === 'basic') return { label: 'Basic', variant: 'basic' };
   return { label: 'Grátis', variant: 'free' };
 }
 
-export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: UserMenuProps) {
+export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt, userSubscriptionStatus }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const initial = (userName ?? userEmail ?? 'U').charAt(0).toUpperCase();
   const displayName = userName ?? userEmail ?? '';
-  const { label: planLabel, variant: planVariant } = getPlanLabel(userPlan, userTrialEndsAt);
+  const { label: planLabel, variant: planVariant } = getPlanLabel(userPlan, userTrialEndsAt, userSubscriptionStatus);
 
   useEffect(() => {
     if (!open) return;
@@ -44,7 +58,6 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: Use
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    Sentry.setUser(null);
     router.push('/login');
     router.refresh();
   }
@@ -81,7 +94,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: Use
               'mt-0.5 text-[10px] font-semibold',
               planVariant === 'pro' && 'text-primary',
               planVariant === 'trial' && 'text-amber-500 dark:text-amber-400',
-              planVariant === 'free' && 'text-muted-foreground',
+              (planVariant === 'basic' || planVariant === 'free') && 'text-muted-foreground',
             )}
           >
             {planLabel}
@@ -111,7 +124,7 @@ export function UserMenu({ userName, userEmail, userPlan, userTrialEndsAt }: Use
                 'mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold',
                 planVariant === 'pro' && 'bg-primary/10 text-primary',
                 planVariant === 'trial' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-                planVariant === 'free' && 'bg-muted text-muted-foreground',
+                (planVariant === 'basic' || planVariant === 'free') && 'bg-muted text-muted-foreground',
               )}
             >
               {planLabel}

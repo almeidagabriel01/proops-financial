@@ -15,7 +15,7 @@ function pastDate(days: number): string {
 
 describe('computePlanCapabilities', () => {
   describe('Basic sem trial', () => {
-    const profile = { plan: 'basic' as const, trial_ends_at: null, audio_enabled: false };
+    const profile = { plan: 'basic' as const, trial_ends_at: null, audio_enabled: false, subscription_status: null };
 
     it('retorna isBasic=true, isPro=false', () => {
       const caps = computePlanCapabilities(profile);
@@ -52,6 +52,7 @@ describe('computePlanCapabilities', () => {
       plan: 'basic' as const,
       trial_ends_at: futureDate(3),
       audio_enabled: true,
+      subscription_status: null,
     };
 
     it('retorna isPro=true durante trial', () => {
@@ -93,6 +94,7 @@ describe('computePlanCapabilities', () => {
       plan: 'basic' as const,
       trial_ends_at: pastDate(1),
       audio_enabled: true,
+      subscription_status: null,
     };
 
     it('retorna isPro=false após trial expirar', () => {
@@ -118,6 +120,7 @@ describe('computePlanCapabilities', () => {
       plan: 'pro' as const,
       trial_ends_at: null,
       audio_enabled: true,
+      subscription_status: null,
     };
 
     it('retorna isPro=true, isBasic=false', () => {

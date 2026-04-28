@@ -42,16 +42,23 @@ const defaults: PlanCapabilities = {
 };
 
 export function computePlanCapabilities(
-  profile: Pick<Profile, 'plan' | 'trial_ends_at' | 'audio_enabled'>
+  profile: Pick<Profile, 'plan' | 'trial_ends_at' | 'audio_enabled' | 'subscription_status'>
 ): PlanCapabilities {
-  const tier = getEffectiveTier(profile.plan, profile.trial_ends_at);
+  const tier = getEffectiveTier(profile.plan, profile.trial_ends_at, profile.subscription_status);
   const isPro = tier === 'pro';
+
+  // inTrial: subscription_status é a fonte primária; trial_ends_at é o fallback para
+  // usuários sem subscription_status (migração ou trial legado).
   const inTrial =
-    profile.plan === 'basic' &&
-    !!profile.trial_ends_at &&
-    new Date(profile.trial_ends_at) > new Date();
-  const trialDaysLeft = inTrial
-    ? Math.ceil((new Date(profile.trial_ends_at!).getTime() - Date.now()) / 86400000)
+    profile.subscription_status === 'trialing' ||
+    (
+      !profile.subscription_status &&
+      !!profile.trial_ends_at &&
+      new Date(profile.trial_ends_at) > new Date()
+    );
+
+  const trialDaysLeft = inTrial && profile.trial_ends_at
+    ? Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000)
     : 0;
 
   return {

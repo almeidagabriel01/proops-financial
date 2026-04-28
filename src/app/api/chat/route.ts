@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+
 import { streamText, convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, type UIMessage } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
@@ -22,9 +22,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Set Sentry user context for error reports
-  Sentry.setUser({ id: user.id });
-
   const { data: profile } = await supabase
     .from('profiles')
     .select('plan, trial_ends_at, audio_enabled, ai_queries_this_month, ai_queries_reset_at')
@@ -32,9 +29,7 @@ export async function POST(req: Request) {
     .single();
 
   if (!profile) {
-    Sentry.captureException(new Error('Profile not found after auth'), {
-      extra: { userId: user.id, operation: 'chat_stream' },
-    });
+    console.error('[chat] profile not found after auth', { userId: user.id });
     return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
   }
 
@@ -62,7 +57,10 @@ export async function POST(req: Request) {
     }
   }
 
-  const model = tier === 'pro' ? 'gemini-2.5-flash' : 'gemini-2.0-flash';
+  const PRO_MODEL = 'gemini-3.1-flash-lite-preview';
+  const PRO_MODEL_FALLBACK = 'gemini-2.5-flash';
+  const BASIC_MODEL = 'gemini-2.5-flash-lite';
+  const model = tier === 'pro' ? PRO_MODEL : BASIC_MODEL;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 
@@ -89,7 +87,7 @@ export async function POST(req: Request) {
   if (!process.env.GOOGLE_AI_API_KEY) {
     console.log('[chat] stub mode — GOOGLE_AI_API_KEY not set');
     const stubText =
-      '[Modo demonstração] Configure ANTHROPIC_API_KEY para ativar o assistente financeiro com seus dados reais.';
+      '[Modo demonstração] Configure GOOGLE_AI_API_KEY para ativar o assistente financeiro com seus dados reais.';
     const stream = createUIMessageStream({
       execute({ writer }) {
         writer.write({ type: 'text-delta', delta: stubText } as Parameters<typeof writer.write>[0]);
@@ -102,14 +100,26 @@ export async function POST(req: Request) {
   const tools = tier === 'pro' ? makeProTools(user.id, supabaseAdmin, supabase) : undefined;
 
   const modelMessages = await convertToModelMessages(messages);
+  const activeModel = tier === 'pro' ? PRO_MODEL : BASIC_MODEL;
+
   const result = streamText({
-    model: google(model),
+    model: google(activeModel),
     system: systemPrompt,
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
     maxOutputTokens: 1024,
+    onError({ error }) {
+      console.error("[error]", error, {
+        extra: {
+          model: activeModel,
+          fallback: tier === 'pro' ? PRO_MODEL_FALLBACK : null,
+        },
+      });
+    },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    headers: { 'X-AI-Model': activeModel },
+  });
 }

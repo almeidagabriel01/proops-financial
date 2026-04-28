@@ -10,13 +10,13 @@ import {
   Bot,
   Wallet,
   Target,
+  Sliders,
+  FileText,
   Upload,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import * as Sentry from '@sentry/nextjs';
-
 const items = [
   { href: '/dashboard', icon: BarChart2, label: 'Início' },
   { href: '/transactions', icon: CreditCard, label: 'Transações' },
@@ -24,6 +24,8 @@ const items = [
   { href: '/chat', icon: Bot, label: 'Chat IA' },
   { href: '/more/orcamentos', icon: Wallet, label: 'Orçamentos' },
   { href: '/more/objetivos', icon: Target, label: 'Objetivos' },
+  { href: '/more/regras', icon: Sliders, label: 'Regras de Categorização' },
+  { href: '/more/irpf', icon: FileText, label: 'Declaração de IR' },
   { href: '/import', icon: Upload, label: 'Importar' },
 ] as const;
 
@@ -58,7 +60,6 @@ export function Dock() {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    Sentry.setUser(null);
     router.push('/login');
     router.refresh();
   }

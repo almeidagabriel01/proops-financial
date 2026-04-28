@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { FileX2, RefreshCw } from 'lucide-react';
+import { FileText, FileX2, RefreshCw } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,11 +12,11 @@ import { TransactionActions } from '@/components/transactions/transaction-action
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import { formatCurrency } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
-import type { Transaction } from '@/hooks/use-transactions';
+import type { TransactionWithTags } from '@/hooks/use-transactions';
 import type { Category } from '@/lib/billing/plans';
 
 interface TransactionListProps {
-  transactions: Transaction[];
+  transactions: TransactionWithTags[];
   isLoading: boolean;
   isLoadingMore: boolean;
   error: string | null;
@@ -28,15 +28,20 @@ interface TransactionListProps {
 
 /* ── Desktop table row ─────────────────────────────────────────── */
 
+const MAX_TABLE_CHIPS = 3;
+
 function TransactionTableRow({
   transaction: tx,
   onMutated,
 }: {
-  transaction: Transaction;
+  transaction: TransactionWithTags;
   onMutated?: () => void;
 }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [localCategory, setLocalCategory] = useState(tx.category ?? 'outros');
+  const [localTags, setLocalTags] = useState<string[]>(
+    (tx.transaction_tags ?? []).map((t) => t.tag),
+  );
   const isCredit = tx.type === 'credit';
   const catConfig = CATEGORY_CONFIG[localCategory as Category] ?? CATEGORY_CONFIG.outros;
   const isManual = tx.import_id === null;
@@ -44,6 +49,10 @@ function TransactionTableRow({
   function handleCategoryUpdated(transactionId: string, newCategory: string) {
     if (transactionId === tx.id) setLocalCategory(newCategory);
     onMutated?.();
+  }
+
+  function handleTagsUpdated(tags: string[]) {
+    setLocalTags(tags);
   }
 
   const dateStr = new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR', {
@@ -77,6 +86,30 @@ function TransactionTableRow({
               <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
               {isManual && (
                 <span className="text-[10px] text-muted-foreground">Manual</span>
+              )}
+              {(localTags.length > 0 || tx.notes) && (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {tx.notes && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                      <FileText className="h-3 w-3" />
+                      Nota
+                    </span>
+                  )}
+                  {localTags.slice(0, MAX_TABLE_CHIPS).map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="h-4 px-1.5 text-[10px] font-normal"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                  {localTags.length > MAX_TABLE_CHIPS && (
+                    <span className="text-[10px] text-muted-foreground">
+                      +{localTags.length - MAX_TABLE_CHIPS}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -114,10 +147,11 @@ function TransactionTableRow({
         </td>
       </tr>
       <TransactionDetail
-        transaction={{ ...tx, category: localCategory }}
+        transaction={{ ...tx, category: localCategory, transaction_tags: localTags.map((t) => ({ tag: t })) }}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         onCategoryUpdated={handleCategoryUpdated}
+        onTagsUpdated={handleTagsUpdated}
       />
     </>
   );

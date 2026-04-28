@@ -15,19 +15,19 @@ type HealthResponse = {
   dependencies: {
     supabase: DependencyStatus;
     googleAI: DependencyStatus;
-    asaas: DependencyStatus;
+    stripe: DependencyStatus;
   };
 };
 
 function computeOverallStatus(
   supabase: DependencyStatus,
   googleAI: DependencyStatus,
-  asaas: DependencyStatus,
+  stripe: DependencyStatus,
 ): 'ok' | 'degraded' | 'error' {
   if (supabase.status === 'error') return 'error';
   const allConfigured =
     googleAI.status === 'configured' &&
-    asaas.status === 'configured';
+    stripe.status === 'configured';
   return allConfigured ? 'ok' : 'degraded';
 }
 
@@ -59,7 +59,7 @@ describe('Health Check — overall status logic', () => {
     expect(status).toBe('degraded');
   });
 
-  it('returns degraded when Asaas key is missing', () => {
+  it('returns degraded when Stripe key is missing', () => {
     const status = computeOverallStatus(
       { status: 'ok' },
       { status: 'configured' },
@@ -87,7 +87,7 @@ describe('Health Check — response shape', () => {
       dependencies: {
         supabase: { status: 'ok', latencyMs: 30 },
         googleAI: { status: 'configured' },
-        asaas: { status: 'configured' },
+        stripe: { status: 'configured' },
       },
     };
 
@@ -97,7 +97,7 @@ describe('Health Check — response shape', () => {
     expect(response).toHaveProperty('dependencies');
     expect(response.dependencies).toHaveProperty('supabase');
     expect(response.dependencies).toHaveProperty('googleAI');
-    expect(response.dependencies).toHaveProperty('asaas');
+    expect(response.dependencies).toHaveProperty('stripe');
   });
 
   it('supabase status includes latencyMs', () => {

@@ -1,23 +1,29 @@
 'use client';
 
 import { useState } from 'react';
+import { FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateRelative } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
-import type { Transaction } from '@/hooks/use-transactions';
+import type { TransactionWithTags } from '@/hooks/use-transactions';
 import { TransactionActions } from '@/components/transactions/transaction-actions';
 import { TransactionDetail } from '@/components/transactions/transaction-detail';
 import { CATEGORY_CONFIG } from '@/lib/utils/categories';
 import type { Category } from '@/lib/billing/plans';
 
+const MAX_CHIPS = 3;
+
 interface TransactionItemProps {
-  transaction: Transaction;
+  transaction: TransactionWithTags;
   onMutated?: () => void;
 }
 
 export function TransactionItem({ transaction: tx, onMutated }: TransactionItemProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [localCategory, setLocalCategory] = useState(tx.category ?? 'outros');
+  const [localTags, setLocalTags] = useState<string[]>(
+    (tx.transaction_tags ?? []).map((t) => t.tag),
+  );
   const isCredit = tx.type === 'credit';
   const catConfig = CATEGORY_CONFIG[localCategory as Category] ?? CATEGORY_CONFIG.outros;
   const isManual = tx.import_id === null;
@@ -28,6 +34,13 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
     }
     onMutated?.();
   }
+
+  function handleTagsUpdated(tags: string[]) {
+    setLocalTags(tags);
+  }
+
+  const visibleTags = localTags.slice(0, MAX_CHIPS);
+  const overflowCount = localTags.length - MAX_CHIPS;
 
   return (
     <>
@@ -51,7 +64,7 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{tx.description}</p>
-            <div className="mt-0.5 flex items-center gap-2">
+            <div className="mt-0.5 flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">{formatDateRelative(tx.date)}</span>
               <Badge
                 variant="outline"
@@ -64,6 +77,28 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
                 <span className="text-[10px] text-muted-foreground">Manual</span>
               )}
             </div>
+            {(localTags.length > 0 || tx.notes) && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {tx.notes && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                    <FileText className="h-3 w-3" />
+                    Nota
+                  </span>
+                )}
+                {visibleTags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="h-4 px-1.5 text-[10px] font-normal"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+                {overflowCount > 0 && (
+                  <span className="text-[10px] text-muted-foreground">+{overflowCount}</span>
+                )}
+              </div>
+            )}
           </div>
         </button>
 
@@ -87,10 +122,11 @@ export function TransactionItem({ transaction: tx, onMutated }: TransactionItemP
       </div>
 
       <TransactionDetail
-        transaction={{ ...tx, category: localCategory }}
+        transaction={{ ...tx, category: localCategory, transaction_tags: localTags.map((t) => ({ tag: t })) }}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         onCategoryUpdated={handleCategoryUpdated}
+        onTagsUpdated={handleTagsUpdated}
       />
     </>
   );

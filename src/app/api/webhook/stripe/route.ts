@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+
 import { createServiceClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/billing/stripe';
 import { handleStripeWebhook } from '@/lib/billing/webhook-handler';
 
 // POST /api/webhook/stripe
 // Public route — no JWT auth; validated via Stripe signature in stripe-signature header
-// Stripe retries on non-2xx — always return 200 when signature is valid
 export async function POST(req: Request) {
   const body = await req.text();
   const sig = req.headers.get('stripe-signature');
@@ -28,11 +27,9 @@ export async function POST(req: Request) {
     const supabase = await createServiceClient();
     await handleStripeWebhook(event, supabase);
   } catch (err) {
-    Sentry.captureException(err, {
-      extra: { operation: 'stripe_webhook', eventType: event.type },
-    });
-    // Still return 200 — Stripe retries on non-2xx, leading to duplicate processing
-    console.error('[webhook/stripe] Unexpected error:', err);
+    console.error('[webhook/stripe] Unhandled error processing event:', event.type, err);
+    // Return 500 so Stripe retries the event (operations are upsert-safe)
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 
   return new NextResponse('OK', { status: 200 });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
+
 import Groq from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getEffectiveTier } from '@/lib/billing/plans';
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ transcript: transcription.text });
   } catch (err) {
     console.error('[audio] Groq Whisper error:', err);
-    Sentry.captureException(err, {
+    console.error("[error]", err, {
       extra: { userId: user.id, operation: 'audio_transcription' },
     });
     return NextResponse.json(

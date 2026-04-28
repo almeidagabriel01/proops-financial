@@ -8,8 +8,10 @@ import { Progress } from '@/components/ui/progress';
 import { BudgetProgressCard } from '@/components/budgets/budget-progress-card';
 import { BudgetForm } from '@/components/budgets/budget-form';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MonthPickerFilter } from '@/components/ui/month-picker-filter';
 import { useBudgets, type Budget } from '@/hooks/use-budgets';
 import { usePlan } from '@/hooks/use-plan';
+import { PushPermissionBanner } from '@/components/push/push-permission-banner';
 
 export default function OrcamentosPage() {
   const plan = usePlan();
@@ -68,11 +70,15 @@ export default function OrcamentosPage() {
             {budgets.data.length > 0 && (
               <p className="mt-1 text-sm text-muted-foreground">
                 {budgets.data.length} {budgets.data.length === 1 ? 'categoria' : 'categorias'} •{' '}
-                {totalPct}% do limite total usado este mês
+                {totalPct}% do limite total usado
               </p>
             )}
           </div>
           <div className="flex items-center gap-4">
+            <MonthPickerFilter
+              value={budgets.currentMonth}
+              onChange={budgets.setCurrentMonth}
+            />
             {budgets.data.length > 0 && (
               <div className="text-right">
                 <div className="w-40">
@@ -93,14 +99,25 @@ export default function OrcamentosPage() {
         </div>
 
         {/* Mobile header */}
-        <div className="flex items-center justify-between lg:hidden">
-          <h1 className="text-lg font-semibold">Orçamentos</h1>
-          {canAdd && (
-            <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
-              <Plus className="mr-1.5 h-4 w-4" /> Novo
-            </Button>
-          )}
+        <div className="space-y-3 lg:hidden">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold">Orçamentos</h1>
+            {canAdd && (
+              <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
+                <Plus className="mr-1.5 h-4 w-4" /> Novo
+              </Button>
+            )}
+          </div>
+          <div className="flex justify-center">
+            <MonthPickerFilter
+              value={budgets.currentMonth}
+              onChange={budgets.setCurrentMonth}
+            />
+          </div>
         </div>
+
+        {/* Banner de permissão de push — exibido na primeira visita, gerenciado internamente */}
+        <PushPermissionBanner />
 
         {!plan.isPro && (
           <p className="text-xs text-muted-foreground">
@@ -132,6 +149,7 @@ export default function OrcamentosPage() {
               >
                 <BudgetProgressCard
                   budget={budget}
+                  currentMonth={budgets.currentMonth}
                   onEdit={(b) => { setEditing(b); setFormOpen(true); }}
                   onDelete={(id) => void handleDelete(id)}
                 />

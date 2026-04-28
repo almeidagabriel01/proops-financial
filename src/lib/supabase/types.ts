@@ -13,6 +13,7 @@ export type Database = {
           plan: 'basic' | 'pro';
           trial_ends_at: string | null;
           stripe_customer_id: string | null;
+          subscription_status: string | null;
           audio_enabled: boolean;
           ai_queries_this_month: number;
           ai_queries_reset_at: string;
@@ -26,6 +27,7 @@ export type Database = {
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           stripe_customer_id?: string | null;
+          subscription_status?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -39,6 +41,7 @@ export type Database = {
           plan?: 'basic' | 'pro';
           trial_ends_at?: string | null;
           stripe_customer_id?: string | null;
+          subscription_status?: string | null;
           audio_enabled?: boolean;
           ai_queries_this_month?: number;
           ai_queries_reset_at?: string;
@@ -157,6 +160,7 @@ export type Database = {
           installment_group_id: string | null;
           installment_number: number | null;
           recurring_rule_id: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -176,6 +180,7 @@ export type Database = {
           installment_group_id?: string | null;
           installment_number?: number | null;
           recurring_rule_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -195,6 +200,7 @@ export type Database = {
           installment_group_id?: string | null;
           installment_number?: number | null;
           recurring_rule_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -362,6 +368,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'goals_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      transaction_tags: {
+        Row: {
+          id: string;
+          transaction_id: string;
+          user_id: string;
+          tag: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          transaction_id: string;
+          user_id: string;
+          tag: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          transaction_id?: string;
+          user_id?: string;
+          tag?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'transaction_tags_transaction_id_fkey';
+            columns: ['transaction_id'];
+            isOneToOne: false;
+            referencedRelation: 'transactions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'transaction_tags_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
@@ -652,7 +697,7 @@ export type Database = {
           user_id: string;
           stripe_subscription_id: string | null;
           billing_cycle: 'monthly' | 'annual';
-          status: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start: string | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
@@ -664,7 +709,7 @@ export type Database = {
           user_id: string;
           stripe_subscription_id?: string | null;
           billing_cycle: 'monthly' | 'annual';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
@@ -675,8 +720,8 @@ export type Database = {
           id?: string;
           user_id?: string;
           stripe_subscription_id?: string | null;
-          billing_cycle?: 'monthly' | 'yearly';
-          status?: 'active' | 'past_due' | 'canceled' | 'expired' | 'pending';
+          billing_cycle?: 'monthly' | 'annual';
+          status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'pending';
           current_period_start?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;

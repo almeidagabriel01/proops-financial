@@ -20,6 +20,7 @@ interface PendingTransaction {
   id: string;
   description: string;
   amount: number;
+  type: string;
 }
 
 const STUB_CONFIDENCE = 0.8; // Fixed confidence for keyword-matched results
@@ -47,108 +48,169 @@ function normalizeDescription(raw: string): string {
 //   - iptu ONLY in impostos (not moradia)
 //   - Gaming (xbox/playstation/steam) goes to lazer, not assinaturas
 
+// Ordering mirrors src/lib/ai/categorizer.ts — keep in sync.
 const KEYWORD_RULES: Array<{ keywords: string[]; category: string }> = [
   {
-    keywords: ['ifood', 'rappi', 'uber eats', '99food', 'james ', 'loggi'],
+    // DELIVERY — before transporte
+    keywords: [
+      'ifood', 'rappi', 'uber eats', 'ubereats', 'james delivery', 'loggi',
+      'dominos', 'pizza hut', 'burger king delivery', 'mcdelivery',
+    ],
     category: 'delivery',
   },
   {
+    // ASSINATURAS streaming/tech — before compras (amazon prime before amazon)
     keywords: [
-      'uber', '99 ', 'cabify', 'estacionamento', 'pedagio',
+      'netflix', 'spotify', 'amazon prime', 'disney', 'hbo ',
+      'paramount', 'globoplay', 'youtube premium', 'youtubepremium', 'youtube music',
+      'google one', 'icloud', 'apple.com', 'applecomb', 'microsoft',
+      'office 365', 'adobe', 'dropbox', 'mercadopago assin', 'melimais',
+      'produtos globo', 'combate', 'deezer', 'crunchyroll', 'duolingo', 'canva',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    // ASSINATURAS telecom pos/pre-pago — before moradia
+    keywords: [
+      'tim pos', 'claro pos', 'vivo pos', 'oi pos',
+      'tim pre', 'claro pre', 'tim controle', 'vivo controle',
+      'tim black', 'claro black',
+    ],
+    category: 'assinaturas',
+  },
+  {
+    // TRANSPORTE — after delivery
+    keywords: [
+      'uber', '99app', '99 taxi', 'cabify',
+      'posto ', 'auto posto', 'combustivel', 'gasolina', 'etanol',
+      'shell ', 'ipiranga', 'br petro', 'raizen', 'ale combustivel',
+      'sem parar', 'nutag', 'conectcar',
+      'estapar', 'estacionamento', 'pedagio',
+      'mecanica', 'autopecas', 'auto peca', 'borracharia', 'pneu ',
       'metro ', 'sptrans', 'bilhete unico',
-      'gasolina', 'etanol', 'combustivel',
-      'posto ', 'shell ', 'ipiranga', 'petrobras',
     ],
     category: 'transporte',
   },
   {
+    // IMPOSTOS — before transferencias
     keywords: [
-      'supermercado', 'hipermercado', 'carrefour', 'extra ',
-      'pao de acucar', 'atacadao', 'assai', 'hortifrutti', 'hortifruti',
-      'restaurante', 'padaria', 'lanchonete',
-      'mc donalds', 'mcdonalds', 'burger', 'churrascaria', 'pizzaria',
-      'sushi', 'acougue', 'mercearia', 'sacolao',
+      'ipva', 'iptu', 'irpf', 'imposto', 'darf', 'detran', 'licenciamento',
+      'iof ', 'juros de rotativo', 'juros rotativo',
+      'encargos', 'multa ', 'sefaz', 'receita federal',
+    ],
+    category: 'impostos',
+  },
+  {
+    // TRANSFERENCIAS — before moradia
+    keywords: [
+      'pix ', 'ted ', 'doc ', 'transferencia',
+      'pagamento recebido', 'credito de rotativo', 'estorno',
+      'devolucao', 'reembolso', 'saldo em rotativo', 'encerramento de divida',
+    ],
+    category: 'transferencias',
+  },
+  {
+    // COMPRAS — before alimentacao (mercado livre before generic "mercado")
+    keywords: [
+      'mercado livre', 'mercadolivre', 'shopee', 'aliexpress',
+      'magalu', 'magazine luiza', 'americanas', 'submarino',
+      'casas bahia', 'renner', 'riachuelo', 'marisa', 'havan', 'leader',
+      'capinha', 'capas ', 'acessorio', 'king cell', 'eletronico', 'informatica',
+      'kalunga', 'leroy merlin', 'amazon', 'kabum', 'ponto frio',
+    ],
+    category: 'compras',
+  },
+  {
+    // ALIMENTACAO — after compras
+    keywords: [
+      'supermercado', 'hipermercado', 'mercadinho', 'atacadao', 'atacado',
+      'carrefour', 'extra ', 'pao de acucar', 'mundial', 'prezunic',
+      'hortifruti', 'hortifrutti', 'sacolao', 'feira ',
+      'padaria', 'panificadora', 'confeitaria',
+      'acougue', 'peixaria', 'mercearia',
+      'acai', 'lanchonete', 'cafeteria', 'cafe ',
+      'restaurante', 'bar ', 'boteco', 'churrascaria',
+      'hamburgueria', 'sushi', 'pizza ', 'subway', 'mcdonalds', 'burger',
     ],
     category: 'alimentacao',
   },
   {
     keywords: [
-      'netflix', 'spotify', 'amazon prime', 'icloud', 'disney',
-      'hbo ', 'globoplay', 'apple tv', 'deezer', 'youtube premium',
-      'crunchyroll', 'academia', 'smartfit', 'smart fit',
-    ],
-    category: 'assinaturas',
-  },
-  {
-    keywords: [
-      'farmacia', 'drogaria', 'droga raia', 'drogasil', 'ultrafarma',
-      'pacheco', 'nissei', 'clinica', 'consulta', 'medico', 'dentista',
-      'laboratorio', 'hospital', 'unimed', 'amil', 'hapvida',
-      'plano saude', 'exame ', 'fisioterapia', 'droga ',
+      'farmacia', 'drogaria', 'droga ', 'ultrafarma', 'drogasil',
+      'pacheco', 'nissei', 'pague menos', 'farma',
+      'hospital', 'clinica', 'laboratorio', 'laborat',
+      'fleury', 'dasa ', 'odontologia', 'dentista', 'ortodontia',
+      'oralplatinum', 'odonto', 'medico', 'consulta', 'exame ',
+      'hapvida', 'unimed', 'bradesco saude', 'sulamerica saude', 'amil',
     ],
     category: 'saude',
   },
   {
+    // MORADIA — after telecom-assinaturas and transferencias
     keywords: [
-      'mercado livre', 'shopee', 'aliexpress', 'magalu', 'magazine luiza',
-      'americanas', 'renner', 'ca moda', 'zara', 'hm ', 'riachuelo',
-      'kabum', 'submarino', 'ponto frio', 'casas bahia',
-      'amazon marketplace', 'amazon ',
-    ],
-    category: 'compras',
-  },
-  {
-    keywords: ['pix ', 'ted ', 'doc ', 'transferencia', 'emprestimo'],
-    category: 'transferencias',
-  },
-  {
-    keywords: [
-      'aluguel', 'condominio', 'energia ', 'cpfl', 'enel', 'cemig',
-      'light ', 'eletrobras', 'sabesp', 'comgas', 'copasa', 'sanepar',
-      'gas ', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
+      'condominio', 'aluguel',
+      'agua ', 'sabesp', 'copasa',
+      'luz ', 'energia ', 'enel ', 'cemig ', 'copel ', 'coelba', 'celpe',
+      'gas ', 'comgas', 'gas natural',
+      'internet ', 'claro residencial', 'vivo residencial',
+      'tim residencial', 'oi residencial', 'net combo',
+      'telefone fixo', 'vivo ', 'claro ', 'net ', 'oi ', 'tim ', 'fibra',
     ],
     category: 'moradia',
   },
   {
     keywords: [
-      'faculdade', 'universidade', 'escola ', 'colegio', 'mensalidade',
-      'udemy', 'alura', 'coursera', 'curso ', 'treinamento', 'pearson', 'apostila',
+      'escola ', 'colegio', 'faculdade', 'universidade',
+      'educacao ltda', 'educacao s', 'faceb educacao', 'anhanguera', 'kroton',
+      'descomplica', 'alura', 'udemy', 'coursera',
+      'curso ', 'aula ', 'workshop', 'livraria', 'livro ',
+      'material escolar', 'papelaria', 'matricula', 'mensalidade escolar',
     ],
     category: 'educacao',
   },
   {
+    // Gaming (steam/xbox/playstation) lives here, not assinaturas
     keywords: [
-      'cinema', 'teatro', 'show ', 'ingresso', 'bilheteria',
-      'pousada', 'hotel ', 'hospedagem', 'viagem', 'turismo',
-      'bar ', 'balada', 'steam ', 'xbox', 'playstation', 'nintendo',
-      'jogos', 'lazer', 'cervejaria', 'ticketmaster', 'sympla', 'gamepass',
+      'cinema', 'cinemark', 'kinoplex', 'ingresso', 'show ', 'teatro ',
+      'parque ', 'museu ', 'academia ', 'smart fit', 'bodytech', 'bluefit', 'crossfit',
+      'steam', 'playstation', 'xbox', 'nintendo', 'riot games',
+      'hotel ', 'pousada', 'hostel', 'airbnb', 'booking', 'decolar',
+      'viagem', 'turismo', 'agencia ',
     ],
     category: 'lazer',
   },
   {
     keywords: [
-      'salario', 'freelance', 'deposito renda', 'renda mensal',
-      'decimo terceiro', 'bonus ', 'remuneracao', 'pro labore',
+      'salario', 'pagamento salario', 'folha pagamento',
+      'pro labore', 'prolabore', 'remuneracao',
+      'freelance', 'deposito renda', 'decimo terceiro',
     ],
     category: 'salario',
   },
   {
     keywords: [
-      'investimento', 'tesouro direto', 'tesouro selic',
-      'cdb', 'lci', 'lca', 'fii', 'acoes', 'corretora',
-      'xp ', 'rico ', 'clear ', 'nuinvest', 'caixinha', 'rendimento',
-      'resgate', 'aplicacao',
+      'xp invest', 'nubank invest', 'rico invest', 'inter invest',
+      'tesouro direto', 'tesouro selic', 'cdb ', 'lci ', 'lca ',
+      'fundo ', 'acoes ', 'bolsa ', 'rendimento', 'resgate', 'aplicacao',
+      'corretora', 'nuinvest',
     ],
     category: 'investimentos',
   },
-  {
-    keywords: [
-      'imposto', 'ipva', 'iptu', 'iof', 'darf', 'das ', 'mei ',
-      'taxa ', 'tributo', 'receita federal', 'detran', 'sefaz',
-    ],
-    category: 'impostos',
-  },
 ];
+
+// Heuristic: person names (e.g. "NATACHA CALIXTO GARCIA") → transferencias
+function looksLikePersonName(normalized: string): boolean {
+  const words = normalized.split(' ').filter((w) => w.length > 0);
+  if (words.length < 2 || words.length > 5) return false;
+  if (/\d/.test(normalized)) return false;
+  const businessWords = [
+    'ltda', 'eireli', 'comercio', 'servicos', 'industria', 'distribuidora',
+    'restaurante', 'loja', 'mercado', 'farmacia', 'supermercado',
+    'posto', 'auto', 'moto', 'peca', 'hotel', 'bar', 'cafe',
+  ];
+  if (businessWords.some((w) => normalized.includes(w))) return false;
+  return words.every((w) => /^[a-z]{2,}$/.test(w));
+}
 
 function categorizeByKeywords(description: string): { category: string; confidence: number } {
   const normalized = normalizeDescription(description);
@@ -159,7 +221,61 @@ function categorizeByKeywords(description: string): { category: string; confiden
       }
     }
   }
+  // Fallback heuristic: person names → transferencias
+  if (looksLikePersonName(normalized)) {
+    return { category: 'transferencias', confidence: 0.6 };
+  }
   return { category: 'outros', confidence: 0 };
+}
+
+// ─── Tier 0: Explicit user rules (table: categorization_rules) ────────────────
+
+async function lookupCategorizationRules(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  transactions: PendingTransaction[],
+): Promise<Map<string, { category: string; source: 'rule' }>> {
+  const results = new Map<string, { category: string; source: 'rule' }>();
+  if (transactions.length === 0) return results;
+
+  const { data, error } = await supabase
+    .from('categorization_rules')
+    .select('pattern, match_type, category')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: false }); // tiebreaker: mais recente vence
+
+  if (error) {
+    console.error('[categorize-import] Tier 0 lookup error:', error);
+    return results;
+  }
+
+  const rules: Array<{ pattern: string; match_type: string; category: string }> = data ?? [];
+  if (rules.length === 0) return results;
+
+  for (const tx of transactions) {
+    const normalized = normalizeDescription(tx.description);
+    for (const rule of rules) {
+      const pat = normalizeDescription(rule.pattern);
+      let matched = false;
+      if (rule.match_type === 'exact') {
+        matched = normalized === pat;
+      } else if (rule.match_type === 'starts_with') {
+        matched = normalized.startsWith(pat);
+      } else {
+        // contains (default)
+        matched = normalized.includes(pat);
+      }
+      if (matched) {
+        results.set(tx.id, { category: rule.category, source: 'rule' });
+        break; // first match wins (priority DESC already applied)
+      }
+    }
+  }
+
+  return results;
 }
 
 // ─── Tier 1: User dictionary lookup (table: category_dictionary) ──────────────
@@ -248,21 +364,71 @@ const VALID_CATEGORIES = new Set([
 ]);
 
 // ─── Tier 3: Gemini AI categorization (with keyword fallback) ─────────────────
-// Calls Google Gemini 2.0 Flash when GOOGLE_AI_API_KEY is set.
+// Calls Google Gemini 2.5 Flash Lite when GOOGLE_AI_API_KEY is set.
 // Falls back to keyword rules if key is missing or call fails.
 // Saves results to category_cache for Tier 2 reuse.
 
-const CATEGORIZE_SYSTEM = `Voce e um classificador de transacoes financeiras brasileiras.
+const CATEGORIZE_SYSTEM = `Voce e um classificador especialista em transacoes financeiras brasileiras de cartao de credito e conta corrente.
 
-CATEGORIAS DISPONIVEIS:
-alimentacao, delivery, transporte, moradia, saude, educacao, lazer, compras,
-assinaturas, transferencias, salario, investimentos, impostos, outros
+CATEGORIAS (use exatamente esses valores):
+- alimentacao: supermercados, padarias, acougues, hortifruti, mercearias, lojas de alimentos
+- delivery: iFood, Rappi, Uber Eats, James, restaurantes com pedido online, pizza delivery
+- transporte: Uber, 99, Cabify, onibus, metro, combustivel, estacionamento, pedagio, Sem Parar, automovel
+- moradia: aluguel, condominio, IPTU, agua, luz, gas, internet residencial, telefone fixo
+- saude: farmacia, drogaria, medico, hospital, clinica, plano de saude, dentista, laboratorio, exame
+- educacao: escola, faculdade, curso, livro didatico, material escolar, matricula, mensalidade escolar
+- lazer: cinema, teatro, show, parque, academia, clube, jogos, streaming de games, hobby, viagem, hotel, turismo
+- compras: lojas em geral, roupas, calcados, eletronicos, moveis, presentes, acessorios, capinhas, produtos nao alimenticios
+- assinaturas: Netflix, Spotify, Amazon Prime, Disney+, HBO, Apple, Google, Microsoft, planos mensais recorrentes
+- transferencias: PIX, TED, DOC, transferencia bancaria, pagamento entre pessoas
+- salario: salario, pagamento de empregador, pro-labore, freelance recebido, renda
+- investimentos: corretora, acoes, fundos, CDB, tesouro direto, cripto, aporte
+- impostos: IPVA, IR, imposto de renda, DARF, FGTS, INSS, tributos governamentais
+- outros: quando nenhuma categoria acima se aplica claramente
 
-REGRAS:
-- Responda APENAS com JSON valido, sem explicacao
-- Use a descricao para inferir a categoria
-- Na duvida, use "outros"
-- Considere o contexto brasileiro`;
+REGRAS CRITICAS:
+1. Produtos fisicos (roupas, eletronicos, acessorios, capinhas, utensilios) = compras (NUNCA impostos)
+2. iFood/Rappi/Uber Eats = delivery (NUNCA alimentacao)
+3. Supermercado/Mercado/Atacado = alimentacao (NUNCA delivery)
+4. Uber/99/taxi = transporte (NUNCA delivery)
+5. Netflix/Spotify/Amazon/Apple/Google = assinaturas (NUNCA lazer)
+6. PIX recebido sem identificar origem = transferencias
+7. Salario/pagamento de empresa = salario
+8. Farmacia/Drogaria = saude (mesmo que venda outros produtos)
+9. IPVA/IPTU/IR/DARF = impostos (NAO confundir com compras de automovel)
+10. Na duvida entre duas categorias, escolha a mais especifica
+11. Nomes com * (asterisco) indicam marketplace/app: MERCADOLIVRE* = compras, GOOGLE* = assinaturas (exceto Google Pay = transferencias), APPLE* ou APPLECOMB* = assinaturas, UBER* = transporte, IFOOD* = delivery
+12. Farmacia/Farma/Drogaria/Droga no nome = saude (mesmo filial ou nome proprio)
+13. Celular/Cell/Phone/Eletronicos no nome = compras
+14. Odontologia/Dentista/Clinica/Medico/Doutor = saude
+15. Educacao/Escola/Faculdade/Colegio/Curso/Ltda Educ = educacao
+16. Tag/Pedagio/Sem Parar/Nutag/ConectCar = transporte
+17. Tim/Claro/Vivo/Oi/Net seguidos de Pos/Pre/Plano = assinaturas; residencial sem sufixo = moradia
+18. Cafe/Cafeteria/Acai/Lanchonete/Restaurante/Bar = alimentacao
+19. Parcelas de lojas fisicas (Renner, Riachuelo, C&A, Marisa, Leader, Havan) = compras
+20. Juros/IOF/Rotativo/Encargos/Multa bancaria = impostos
+21. Credito de rotativo/Estorno/Pagamento recebido = transferencias
+22. Produtos + nome de empresa sem contexto = assinaturas se valor fixo mensal, compras se variavel
+23. Capas/Capinha/Acessorio/Capa para = compras
+24. Auto Peca/Autopecas/Mecanica/Oficina = transporte
+25. Nome de pessoa fisica (CPF, SWE) = transferencias
+
+EXEMPLOS DE CLASSIFICACAO:
+alimentacao: "SUPERMERCADO PAO DE ACUCAR", "MERCADINHO SILVA", "PADARIA CENTRAL", "ATACADAO", "HORTIFRUTI", "CASA DO ACAI", "ACAI CAFE", "LANCHONETE", "CAFETERIA"
+delivery: "IFOOD*RESTAURANTE", "RAPPI", "UBER EATS", "DOMINOS PIZZA", "JAMES DELIVERY"
+transporte: "UBER*VIAGEM", "99APP", "SHELL COMBUSTIVEL", "POSTO IPIRANGA", "ESTAPAR ESTACIONAMENTO", "SEM PARAR", "NUTAG*", "NUTAG PZI", "CONECTCAR", "AUTO POSTO", "JRA AUTOPECAS MECANI"
+moradia: "CONDOMINIO RESIDENCIAL", "COPEL ENERGIA", "SABESP AGUA", "NET CLARO INTERNET", "ALUGUEL"
+saude: "DROGARIA SAO PAULO", "ULTRAFARMA", "DROGA RAIA", "LABORATORIO FLEURY", "HAPVIDA SAUDE", "NATUS FARMA FILIAL", "FARMACIA POPULAR", "DROGASIL", "ORALPLATINUM", "ANDREA ODONTOLOGIA", "CLINICA MEDICA"
+educacao: "FACULDADE ANHANGUERA", "CURSO ALURA", "LIVRARIA CULTURA", "MATERIAL ESCOLAR", "FACEB EDUCACAO LTDA", "EDUCACAO LTDA", "ESCOLA", "COLEGIO"
+lazer: "CINEMARK", "STEAM GAMES", "ACADEMIA SMART FIT", "HOTEL MARRIOTT", "AIRBNB"
+compras: "AMAZON*COMPRA", "MERCADO LIVRE", "MAGALU", "RENNER LOJAS", "SHOPEE", "CAPINHA CELULAR", "ACESSORIOS", "MERCADOLIVRE*", "KING CELL MACHADO", "PARAISO DAS CAPAS", "JRA AUTOPECAS", "SHOPEE*", "AMERICANAS"
+assinaturas: "NETFLIX.COM", "SPOTIFY", "AMAZON PRIME", "APPLE.COM/BILL", "GOOGLE*GSUITE", "MICROSOFT 365", "APPLECOMBILL", "APPLE.COM BILL", "GOOGLE YOUTUBEPREMIUM", "GOOGLE ONE", "MP *MELIMAIS", "MERCADOPAGO ASSINATURA", "PRODUTOS GLOBO", "TIM POS", "CLARO PRE", "NET COMBO", "AMAZON.COM"
+transferencias: "PIX ENVIADO", "TED PARA JOAO", "TRANSFERENCIA DOC", "PAGAMENTO RECEBIDO", "CREDITO DE ROTATIVO", "ESTORNO DE JUROS", "SALDO EM ROTATIVO", "DORISLAYNE NERY", "NATACHA CALIXTO", "CONRADO SOUZA DIAS"
+salario: "PAGAMENTO SALARIO", "FOLHA PAGAMENTO", "PRO-LABORE"
+investimentos: "XP INVESTIMENTOS", "NUBANK INVESTIMENTO", "TESOURO DIRETO"
+impostos: "IPVA 2026", "DARF IRPF", "DETRAN LICENCIAMENTO", "IOF DE ROTATIVO", "JUROS DE ROTATIVO", "ENCERRAMENTO DE DIVIDA", "IPVA*"
+
+Responda APENAS com JSON valido. Sem explicacao, sem markdown, sem comentarios.`;
 
 async function categorizeBatchGemini(
   // deno-lint-ignore no-explicit-any
@@ -281,17 +447,33 @@ async function categorizeBatchGemini(
   }
 
   try {
-    const userMessage = `Classifique estas transacoes e responda APENAS com JSON no formato [{"id":"...","category":"...","confidence":0.95}]:\n${JSON.stringify(transactions.map((t) => ({ id: t.id, description: t.description, amount: t.amount })))}`;
+    const userMessage = `Classifique estas transacoes bancarias brasileiras.
+Responda APENAS com JSON no formato:
+[{"id":"uuid","category":"categoria","confidence":0.95}]
+
+TRANSACOES:
+${JSON.stringify(
+  transactions.map((t) => ({
+    id: t.id,
+    description: t.description,
+    amount: t.amount,
+    type: t.type,
+  })),
+)}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: CATEGORIZE_SYSTEM }] },
           contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1024 },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 4096,
+            temperature: 0.1,
+          },
         }),
       },
     );
@@ -378,7 +560,7 @@ async function saveTransactionUpdates(
   updates: Array<{
     id: string;
     category: string;
-    category_source: 'ai' | 'user' | 'cache';
+    category_source: 'ai' | 'user' | 'cache' | 'rule';
     category_confidence: number | null;
   }>,
 ): Promise<void> {
@@ -432,7 +614,7 @@ Deno.serve(async (req) => {
     // Load all pending transactions for this import
     const { data: pendingTxs, error: fetchError } = await supabase
       .from('transactions')
-      .select('id, description, amount')
+      .select('id, description, amount, type')
       .eq('import_id', importId)
       .eq('category_source', 'pending');
 
@@ -458,9 +640,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Tier 0: Explicit user rules ──────────────────────────────────────────
+    const ruleHits = await lookupCategorizationRules(supabase, userId, pending);
+    const afterTier0 = pending.filter((t) => !ruleHits.has(t.id));
+    console.log('[categorize-import] Tier 0 hits:', ruleHits.size, 'remaining:', afterTier0.length);
+
     // ── Tier 1: User dictionary ──────────────────────────────────────────────
-    const userHits = await lookupUserDictionary(supabase, userId, pending);
-    const afterTier1 = pending.filter((t) => !userHits.has(t.id));
+    const userHits = await lookupUserDictionary(supabase, userId, afterTier0);
+    const afterTier1 = afterTier0.filter((t) => !userHits.has(t.id));
     console.log('[categorize-import] Tier 1 hits:', userHits.size, 'remaining:', afterTier1.length);
 
     // ── Tier 2: Global cache ─────────────────────────────────────────────────
@@ -476,10 +663,13 @@ Deno.serve(async (req) => {
     const updates: Array<{
       id: string;
       category: string;
-      category_source: 'ai' | 'user' | 'cache';
+      category_source: 'ai' | 'user' | 'cache' | 'rule';
       category_confidence: number | null;
     }> = [];
 
+    for (const [id, hit] of ruleHits) {
+      updates.push({ id, category: hit.category, category_source: 'rule', category_confidence: 1.0 });
+    }
     for (const [id, hit] of userHits) {
       updates.push({ id, category: hit.category, category_source: 'user', category_confidence: null });
     }

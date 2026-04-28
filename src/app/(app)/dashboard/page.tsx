@@ -10,6 +10,13 @@ import { Loader2, TrendingDown } from 'lucide-react';
 import { getMonthBounds, groupByWeek, formatCurrency } from '@/lib/utils/format';
 import { aggregateByCategory, buildCategoryBreakdown } from '@/lib/utils/category-aggregation';
 import { UpcomingBillsCard, type UpcomingBill } from '@/components/dashboard/upcoming-bills-card';
+import { DuplicateAlertsCard, type DuplicateAlert } from '@/components/dashboard/duplicate-alerts-card';
+import { SeasonalityCard, type SeasonalityWithEstimate } from '@/components/dashboard/seasonality-card';
+import { getActiveSeasonalities, getSeasonalityEstimate } from '@/lib/dashboard/seasonalities';
+import { SafeToSpendCard } from '@/components/dashboard/safe-to-spend-card';
+import { calculateSafeToSpend } from '@/lib/dashboard/safe-to-spend';
+import { SubscriptionsCard } from '@/components/dashboard/subscriptions-card';
+import { HealthScoreCard } from '@/components/dashboard/health-score-card';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -45,6 +52,8 @@ export default async function DashboardPage({
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
     .replace(/^\w/, (c) => c.toUpperCase());
 
+  const monthName = targetDate.toLocaleDateString('pt-BR', { month: 'long' });
+
   // Upcoming bills: next 7 days + overdue last 30 days
   const sevenDaysAhead = new Date();
   sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
@@ -52,7 +61,19 @@ export default async function DashboardPage({
   const upcomingFrom = new Date();
   upcomingFrom.setDate(upcomingFrom.getDate() - 30);
 
-  const [currentResult, compResult, pendingResult, upcomingResult] = await Promise.all([
+  // Sazonalidades ativas no mês visualizado (usa targetDate, não new Date(), para
+  // respeitar o param ?month=YYYY-MM e evitar divergência de fuso UTC vs UTC-3)
+  const activeSeasonalities = getActiveSeasonalities(targetDate.getMonth() + 1);
+  const lastYear = targetDate.getFullYear() - 1;
+  const lastYearMonth = `${lastYear}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+
+  // Safe-to-spend: endOfMonth derivado de targetDate (param), não de new Date() do servidor.
+  // Cobre o caso UTC vs UTC-3: mês vem do param, não do relógio UTC.
+  const endOfCurrentMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
+
+  const [currentResult, compResult, pendingResult, upcomingResult, duplicateAlertsResult, pendingBillsResult, subscriptionsResult, ...seasonalityEstimates] = await Promise.all([
     supabase
       .from('transactions')
       .select('category, amount, type, date')
@@ -80,9 +101,57 @@ export default async function DashboardPage({
       .in('status', ['pending', 'overdue'])
       .order('due_date', { ascending: true })
       .limit(10),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('duplicate_alerts')
+      .select(
+        'id, status, created_at, t1:transaction_id_1(id, date, description, amount), t2:transaction_id_2(id, date, description, amount)',
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(5),
+    // Safe-to-spend: contas pendentes do mês visualizado (filtro por endOfCurrentMonth de targetDate)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('scheduled_transactions')
+      .select('amount, due_date')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .lte('due_date', endOfCurrentMonth),
+    // Assinaturas detectadas (detected_subscriptions ainda não está nos tipos gerados — migration 023)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('detected_subscriptions')
+      .select('current_amount, frequency, price_change_detected')
+      .eq('user_id', user.id)
+      .is('dismissed_at', null),
+    // Estimativas de sazonalidade para cada sazonalidade ativa no mês visualizado
+    ...activeSeasonalities.map((s) =>
+      getSeasonalityEstimate(supabase, user.id, s.months, s.keywords, lastYear)
+    ),
   ]);
 
   const upcomingBills = ((upcomingResult as { data?: unknown[] }).data ?? []) as UpcomingBill[];
+  const duplicateAlerts = ((duplicateAlertsResult as { data?: unknown[] }).data ?? []) as DuplicateAlert[];
+  const pendingBills = ((pendingBillsResult as { data?: unknown[] }).data ?? []) as Array<{ amount: number; due_date: string }>;
+
+  const detectedSubs = ((subscriptionsResult as { data?: unknown[] }).data ?? []) as Array<{
+    current_amount: number;
+    frequency: 'monthly' | 'annual';
+    price_change_detected: boolean;
+  }>;
+  const subsTotalMonthly = detectedSubs.reduce(
+    (sum, s) => sum + (s.frequency === 'monthly' ? s.current_amount : s.current_amount / 12),
+    0,
+  );
+  const subsPriceChangeCount = detectedSubs.filter((s) => s.price_change_detected).length;
+
+  const seasonalitiesWithEstimates: SeasonalityWithEstimate[] = activeSeasonalities.map((s, i) => ({
+    ...s,
+    estimate: (seasonalityEstimates[i] as { total: number; transactionCount: number } | null) ?? null,
+  }));
+
   const rows = currentResult.data ?? [];
   const compRows = compResult.data ?? [];
 
@@ -94,6 +163,23 @@ export default async function DashboardPage({
   const prevExpenses = compRows.filter((t) => t.type === 'debit').reduce((s, t) => s + Math.abs(t.amount), 0);
   const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
 
+  // Safe-to-spend: referenceDate construído com mês de targetDate + dia de now (servidor).
+  // Mês vem do param ?month= (não de new Date() puro) para evitar divergência UTC vs UTC-3.
+  // O card só é exibido para isCurrentMonth, momento em que targetDate e now estão no mesmo mês.
+  const safeToSpendRef = new Date(
+    targetDate.getFullYear(),
+    targetDate.getMonth(),
+    now.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+  );
+  const safeToSpendResult = calculateSafeToSpend({
+    totalIncome: income,
+    totalExpenses: expenses,
+    pendingBills,
+    referenceDate: safeToSpendRef,
+  });
+
   // Month progress (current month only)
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const dayOfMonth = now.getDate();
@@ -102,6 +188,8 @@ export default async function DashboardPage({
   const dailyAvg = dayOfMonth > 0 ? expenses / dayOfMonth : 0;
   const projectedExpenses = Math.round(expenses + dailyAvg * daysRemaining);
   const upcomingDebit = upcomingBills.filter((b) => b.type === 'debit').reduce((s, b) => s + b.amount, 0);
+
+  const resolvedMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
 
   const weeklyData = groupByWeek(rows);
   const hasData = rows.length > 0;
@@ -143,6 +231,38 @@ export default async function DashboardPage({
               prevIncome={prevIncome}
               prevExpenses={prevExpenses}
               savingsRate={savingsRate}
+            />
+
+            {/* ── Score de Saúde Financeira ─────────────────────────── */}
+            <HealthScoreCard month={resolvedMonth} />
+
+            {/* ── Safe-to-spend (somente mês atual) ────────────────── */}
+            {isCurrentMonth && (
+              <SafeToSpendCard
+                result={safeToSpendResult}
+                hasData={hasData}
+              />
+            )}
+
+            {/* ── Alertas de cobranças duplicadas ───────────────────── */}
+            {duplicateAlerts.length > 0 && (
+              <DuplicateAlertsCard initialAlerts={duplicateAlerts} />
+            )}
+
+            {/* ── Sazonalidades brasileiras ──────────────────────────── */}
+            {seasonalitiesWithEstimates.length > 0 && (
+              <SeasonalityCard
+                seasonalities={seasonalitiesWithEstimates}
+                lastYearMonth={lastYearMonth}
+                monthName={monthName}
+              />
+            )}
+
+            {/* ── Assinaturas detectadas ─────────────────────────────── */}
+            <SubscriptionsCard
+              totalMonthly={subsTotalMonthly}
+              count={detectedSubs.length}
+              priceChangeCount={subsPriceChangeCount}
             />
 
             {/* ── Progresso do mês (somente mês atual) ──────────────── */}
