@@ -10,6 +10,7 @@ import { sanitizeCategory } from '@/lib/utils/categories';
 import { getEffectiveTier, PLAN_LIMITS } from '@/lib/billing/plans';
 import { detectDuplicates } from '@/lib/transactions/duplicate-detector';
 import { detectSubscriptions } from '@/lib/subscriptions/detect-subscriptions';
+import { detectRecurring, normalizeForDetection, type TransactionForDetection } from '@/lib/recurring/detector';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -433,12 +434,66 @@ export async function POST(request: Request) {
   // prior history may already contain enough data to detect a subscription.
   void detectSubscriptions(supabase, user.id);
 
+  // ── Detecção de recorrentes ──────────────────────────────────
+  // Runs synchronously (before response) so candidates are available in the UI.
+  // Combines new transactions with 90-day history to find recurring patterns.
+  let recurringCandidates: ReturnType<typeof detectRecurring> = [];
+  if (newTransactions.length > 0) {
+    try {
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const [{ data: recentHistory }, { data: existingRules }] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('date, description, amount, type, category')
+          .eq('user_id', user.id)
+          .gte('date', ninetyDaysAgo)
+          .neq('import_id', importId)
+          .limit(500),
+        supabase
+          .from('recurring_rules')
+          .select('description')
+          .eq('user_id', user.id)
+          .eq('status', 'active'),
+      ]);
+
+      const existingNorms = new Set(
+        (existingRules ?? []).map((r) => normalizeForDetection(r.description))
+      );
+
+      const historyItems: TransactionForDetection[] = (recentHistory ?? []).map((t) => ({
+        date: t.date,
+        description: t.description,
+        amount: Math.abs(t.amount),
+        type: t.type as 'credit' | 'debit',
+        category: t.category,
+      }));
+
+      const newItems: TransactionForDetection[] = newTransactions.map((t) => ({
+        date: t.date,
+        description: t.description,
+        amount: Math.abs(t.amount),
+        type: t.type as 'credit' | 'debit',
+        category: 'outros',
+      }));
+
+      recurringCandidates = detectRecurring([...historyItems, ...newItems]).filter(
+        (c) => !existingNorms.has(c.normalizedDescription)
+      );
+    } catch (err) {
+      console.error('[import] recurring detection error:', err);
+    }
+  }
+
   return Response.json({
     importId,
+    bankAccountId,
     transactionCount: newTransactions.length,
     duplicatesSkipped,
     alreadyImported: !force && newTransactions.length === 0 && duplicatesSkipped > 0,
     status: 'categorizing',
     detectedInstallments: detectedInstallments.length,
+    recurringCandidates,
   });
 }

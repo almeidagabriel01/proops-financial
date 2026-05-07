@@ -15,7 +15,9 @@ import {
 } from '@/components/ui/dialog';
 import { usePlan } from '@/hooks/use-plan';
 import { PaywallModal } from '@/components/layout/paywall-modal';
+import { RecurringReview } from '@/components/import/recurring-review';
 import { cn } from '@/lib/utils';
+import type { RecurringCandidate } from '@/lib/recurring/detector';
 
 const BANK_OPTIONS = [
   { value: 'Nubank', label: 'Nubank' },
@@ -42,6 +44,9 @@ export default function ImportPage() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [recurringCandidates, setRecurringCandidates] = useState<RecurringCandidate[]>([]);
+  const [importBankAccountId, setImportBankAccountId] = useState<string | null>(null);
+  const [showRecurringReview, setShowRecurringReview] = useState(false);
   const [alreadyImportedDialog, setAlreadyImportedDialog] = useState<{
     open: boolean;
     duplicatesSkipped: number;
@@ -51,6 +56,14 @@ export default function ImportPage() {
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+
+  // Fires when status transitions to completed or when new candidates arrive.
+  // Clearing recurringCandidates in onDone prevents re-triggering after dismiss.
+  useEffect(() => {
+    if (importStatus === 'completed' && recurringCandidates.length > 0) {
+      setShowRecurringReview(true);
+    }
+  }, [importStatus, recurringCandidates]);
 
   // Current step derived from state
   const currentStep = !selectedFile ? 0 : !importStatus ? 1 : 2;
@@ -190,6 +203,12 @@ export default function ImportPage() {
       setTransactionCount(data.transactionCount);
       setDuplicatesSkipped(data.duplicatesSkipped);
       setImportStatus(data.status as ImportStatus);
+      if (Array.isArray(data.recurringCandidates) && data.recurringCandidates.length > 0) {
+        setRecurringCandidates(data.recurringCandidates as RecurringCandidate[]);
+      }
+      if (data.bankAccountId) {
+        setImportBankAccountId(data.bankAccountId as string);
+      }
     } catch {
       setImportStatus('failed');
       setErrorMessage('Erro de conexão. Tente novamente');
@@ -205,6 +224,9 @@ export default function ImportPage() {
     setTransactionCount(undefined);
     setDuplicatesSkipped(undefined);
     setErrorMessage(undefined);
+    setRecurringCandidates([]);
+    setImportBankAccountId(null);
+    setShowRecurringReview(false);
   }
 
   const isProcessing =
@@ -268,7 +290,17 @@ export default function ImportPage() {
           ))}
         </div>
 
-        {importStatus === 'completed' ? (
+        {importStatus === 'completed' && showRecurringReview && importId && importBankAccountId ? (
+          <RecurringReview
+            importId={importId}
+            bankAccountId={importBankAccountId}
+            recurringCandidates={recurringCandidates}
+            onDone={() => {
+              setShowRecurringReview(false);
+              setRecurringCandidates([]);
+            }}
+          />
+        ) : importStatus === 'completed' ? (
           <div className="rounded-xl border border-border bg-card p-6 lg:max-w-xl">
             <ImportProgress
               status="completed"
