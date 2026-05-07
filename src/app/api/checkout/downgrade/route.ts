@@ -27,7 +27,6 @@ export async function POST(req: Request) {
   if (stripeCustomerId) {
     const stripe = getStripe();
 
-    // Check for active or trialing subscription
     const [activeSubs, trialingSubs] = await Promise.all([
       stripe.subscriptions.list({ customer: stripeCustomerId, status: 'active', limit: 1 }),
       stripe.subscriptions.list({ customer: stripeCustomerId, status: 'trialing', limit: 1 }),
@@ -36,14 +35,33 @@ export async function POST(req: Request) {
     const currentSub = activeSubs.data[0] ?? trialingSubs.data[0] ?? null;
 
     if (currentSub) {
-      const currentItem = currentSub.items.data[0];
+      if (currentSub.status === 'trialing') {
+        // For trial users: end trial immediately and redirect to Basic checkout
+        await stripe.subscriptions.update(currentSub.id, {
+          cancel_at_period_end: true,
+          trial_end: 'now' as const,
+        });
+        const checkoutUrl = await createCheckoutSession(user.id, user.email, planKey, false);
+        return NextResponse.json({ ok: true, action: 'checkout', checkoutUrl });
+      }
+
+      // Active paid subscription: schedule cancellation at period end.
+      // User keeps Pro until current_period_end; customer.subscription.deleted fires then
+      // and sets profiles.plan = 'basic'.
       await stripe.subscriptions.update(currentSub.id, {
-        items: [{ id: currentItem.id, price: STRIPE_PRICE_IDS[planKey] }],
-        proration_behavior: 'create_prorations',
-        // End trial immediately when downgrading from trial
-        ...(currentSub.status === 'trialing' ? { trial_end: 'now' as const } : {}),
+        cancel_at_period_end: true,
       });
-      return NextResponse.json({ ok: true, action: 'downgraded' });
+
+      await serviceSupabase
+        .from('subscriptions')
+        .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      const periodEndTs = currentSub.items.data[0]?.current_period_end;
+      const periodEnd = periodEndTs ? new Date(periodEndTs * 1000).toISOString() : null;
+
+      return NextResponse.json({ ok: true, action: 'scheduled_downgrade', periodEnd });
     }
   }
 

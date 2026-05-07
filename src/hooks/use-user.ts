@@ -32,12 +32,28 @@ export function useUser(): UseUserResult {
 
     async function fetchProfile(userId: string) {
       try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        setProfile(data ?? null);
+        const [profileRes, subRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', userId).single(),
+          // Subscriptions table é a fonte autoritativa do status de cobrança.
+          // profiles.subscription_status pode estar desatualizado se um webhook falhou.
+          supabase
+            .from('subscriptions')
+            .select('status')
+            .eq('user_id', userId)
+            .in('status', ['active', 'trialing', 'past_due'])
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        const profile = profileRes.data;
+        const activeSubStatus = subRes.data?.status ?? null;
+
+        if (profile && activeSubStatus) {
+          setProfile({ ...profile, subscription_status: activeSubStatus });
+        } else {
+          setProfile(profile ?? null);
+        }
       } catch {
         setProfile(null);
       }

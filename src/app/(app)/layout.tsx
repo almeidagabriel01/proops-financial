@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/layout/app-shell';
+import { SubscriptionProvider } from '@/contexts/subscription-context';
 import { isWithinGracePeriod } from '@/lib/billing/webhook-handler';
+import { isTrialPaymentPending } from '@/lib/billing/plans';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -35,9 +37,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // profile.plan === 'pro' is a valid fallback: only set by DB trigger on real subscriptions.
   // trial_ends_at is intentionally excluded: handle_new_user may still populate it even
   // for users who never paid, making it an unreliable gate.
+  // 'trialing': acesso garantido apenas se trial ainda ativo OU dentro de 24h após vencimento
+  // (tolerância para delay de webhook). Cartão removido/recusado bloqueia após esse prazo.
+  const trialIsActiveOrPending =
+    !!profile?.trial_ends_at &&
+    (new Date(profile.trial_ends_at) > new Date() || isTrialPaymentPending(profile.trial_ends_at));
+
   const hasDirectAccess =
     activeSub?.status === 'active' ||
-    activeSub?.status === 'trialing' ||
+    (activeSub?.status === 'trialing' && trialIsActiveOrPending) ||
     profile?.plan === 'pro';
 
   const hasPastDueAccess =
@@ -67,15 +75,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showOnboardingBanner = !onboardingCompleted && hasTransactions;
 
   return (
-    <AppShell
-      showOnboardingBanner={showOnboardingBanner}
-      userName={profile?.display_name ?? null}
-      userEmail={user.email ?? ''}
-      userPlan={profile?.plan ?? 'free'}
-      userTrialEndsAt={profile?.trial_ends_at ?? null}
-      userSubscriptionStatus={activeSub?.status ?? null}
+    <SubscriptionProvider
+      subscriptionStatus={activeSub?.status ?? null}
+      plan={profile?.plan ?? 'basic'}
+      trialEndsAt={profile?.trial_ends_at ?? null}
     >
-      {children}
-    </AppShell>
+      <AppShell
+        showOnboardingBanner={showOnboardingBanner}
+        userName={profile?.display_name ?? null}
+        userEmail={user.email ?? ''}
+        userPlan={profile?.plan ?? 'free'}
+        userTrialEndsAt={profile?.trial_ends_at ?? null}
+        userSubscriptionStatus={activeSub?.status ?? null}
+      >
+        {children}
+      </AppShell>
+    </SubscriptionProvider>
   );
 }

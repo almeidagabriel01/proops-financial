@@ -2,6 +2,7 @@
 
 import { useUser } from '@/hooks/use-user';
 import { getEffectiveTier } from '@/lib/billing/plans';
+import { useSubscriptionContext } from '@/contexts/subscription-context';
 import type { Database } from '@/lib/supabase/types';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -49,12 +50,13 @@ export function computePlanCapabilities(
 
   // inTrial: subscription_status é a fonte primária; trial_ends_at é o fallback para
   // usuários sem subscription_status (migração ou trial legado).
+  const trialNotExpired = !!profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date();
+
   const inTrial =
-    profile.subscription_status === 'trialing' ||
+    (profile.subscription_status === 'trialing' && trialNotExpired) ||
     (
       !profile.subscription_status &&
-      !!profile.trial_ends_at &&
-      new Date(profile.trial_ends_at) > new Date()
+      trialNotExpired
     );
 
   const trialDaysLeft = inTrial && profile.trial_ends_at
@@ -81,10 +83,27 @@ export function computePlanCapabilities(
 
 export function usePlan(): PlanCapabilities & { loading: boolean } {
   const { profile, loading } = useUser();
+  const { subscriptionStatus: serverSubStatus, plan: serverPlan, trialEndsAt: serverTrialEndsAt } = useSubscriptionContext();
 
   if (!profile) {
+    // Use server-computed values to prevent flash of wrong plan while client profile loads
+    if (serverPlan !== null) {
+      return {
+        ...computePlanCapabilities({
+          plan: serverPlan as 'basic' | 'pro',
+          trial_ends_at: serverTrialEndsAt,
+          subscription_status: serverSubStatus as 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'pending' | null,
+          audio_enabled: false,
+        }),
+        loading,
+      };
+    }
     return { ...defaults, loading };
   }
 
-  return { ...computePlanCapabilities(profile), loading };
+  const mergedProfile = serverSubStatus !== null
+    ? { ...profile, subscription_status: serverSubStatus as typeof profile.subscription_status }
+    : profile;
+
+  return { ...computePlanCapabilities(mergedProfile), loading };
 }

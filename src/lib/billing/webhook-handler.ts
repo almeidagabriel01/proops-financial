@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+﻿import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import { getStripe, STRIPE_PRICE_IDS } from '@/lib/billing/stripe';
 
@@ -65,7 +65,7 @@ export async function handleStripeWebhook(
 
       // Sync plan tier + trial state explicitly (DB trigger sets plan='pro' blindly — override it)
       if (subscription.status === 'trialing' && subscription.trial_end) {
-        await supabase
+        const { error: pErr1 } = await supabase
           .from('profiles')
           .update({
             plan: planTier,
@@ -74,9 +74,10 @@ export async function handleStripeWebhook(
             subscription_status: 'trialing',
           })
           .eq('id', profile.id);
+        if (pErr1) throw new Error('[webhook] checkout trialing profile update failed: ' + pErr1.message);
       } else {
-        // Not a trial — clear any legacy trial marker
-        await supabase
+        // Not a trial - clear any legacy trial marker
+        const { error: pErr2 } = await supabase
           .from('profiles')
           .update({
             plan: planTier,
@@ -85,6 +86,7 @@ export async function handleStripeWebhook(
             subscription_status: 'active',
           })
           .eq('id', profile.id);
+        if (pErr2) throw new Error('[webhook] checkout active profile update failed: ' + pErr2.message);
       }
       break;
     }
@@ -102,7 +104,12 @@ export async function handleStripeWebhook(
 
       const { data: rows } = await supabase
         .from('subscriptions')
-        .update({ status, ...periodUpdate, updated_at: new Date().toISOString() })
+        .update({
+          status,
+          ...periodUpdate,
+          cancel_at_period_end: sub.cancel_at_period_end ?? false,
+          updated_at: new Date().toISOString(),
+        })
         .eq('stripe_subscription_id', sub.id)
         .select('user_id');
 
@@ -118,7 +125,7 @@ export async function handleStripeWebhook(
       const subPlanTier = getPlanTierFromPriceId(subPriceId);
 
       if (sub.status === 'trialing' && sub.trial_end) {
-        await supabase
+        const { error: pErr3 } = await supabase
           .from('profiles')
           .update({
             plan: subPlanTier,
@@ -127,9 +134,10 @@ export async function handleStripeWebhook(
             subscription_status: 'trialing',
           })
           .eq('id', userId);
+        if (pErr3) throw new Error('[webhook] subscription.updated trialing profile update failed: ' + pErr3.message);
       } else if (sub.status === 'active') {
-        // Trial ended or immediate subscription — clear trial marker
-        await supabase
+        // Trial ended or immediate subscription - clear trial marker
+        const { error: pErr4 } = await supabase
           .from('profiles')
           .update({
             plan: subPlanTier,
@@ -138,6 +146,7 @@ export async function handleStripeWebhook(
             subscription_status: 'active',
           })
           .eq('id', userId);
+        if (pErr4) throw new Error('[webhook] subscription.updated active profile update failed: ' + pErr4.message);
       }
       break;
     }
@@ -146,13 +155,19 @@ export async function handleStripeWebhook(
       const sub = event.data.object as Stripe.Subscription;
       const { data: rows } = await supabase
         .from('subscriptions')
-        .update({ status: 'canceled', updated_at: new Date().toISOString() })
+        .update({ status: 'canceled', cancel_at_period_end: false, updated_at: new Date().toISOString() })
         .eq('stripe_subscription_id', sub.id)
-        .select('id');
+        .select('user_id');
       if (!rows?.length) {
         console.warn(`[webhook] customer.subscription.deleted: no subscription found for ${sub.id}`);
+        break;
       }
-      // Trigger sync_plan_from_subscription fires → sets profiles.plan='basic', audio_enabled=false
+      const deletedUserId = rows[0].user_id as string;
+      // Explicit profile downgrade — does not rely solely on DB trigger
+      await supabase
+        .from('profiles')
+        .update({ plan: 'basic', audio_enabled: false, subscription_status: 'canceled' })
+        .eq('id', deletedUserId);
       break;
     }
 

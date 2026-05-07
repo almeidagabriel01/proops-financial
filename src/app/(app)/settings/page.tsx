@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -179,22 +186,25 @@ function PlanTab() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const [pendingDowngrade, setPendingDowngrade] = useState(false);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
 
   useEffect(() => {
-    if (!user || !isPro || inTrial) return;
+    if (!user || !isPro) return;
     const supabase = createClient();
     supabase
       .from('subscriptions')
-      .select('current_period_end')
+      .select('current_period_end, cancel_at_period_end')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trialing'])
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.current_period_end) setCurrentPeriodEnd(data.current_period_end as string);
+        if (data?.cancel_at_period_end) setPendingDowngrade(true);
       });
-  }, [user, isPro, inTrial]);
+  }, [user, isPro]);
 
   async function handleUpgrade(planKey: 'basic_monthly' | 'pro_monthly', withTrial = false) {
     setActionLoading(true);
@@ -246,14 +256,18 @@ function PlanTab() {
         body: JSON.stringify({ planKey }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Erro ao fazer downgrade');
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao agendar migração');
       if (data.action === 'checkout' && data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
+      } else if (data.action === 'scheduled_downgrade') {
+        setPendingDowngrade(true);
+        if (data.periodEnd) setCurrentPeriodEnd(data.periodEnd as string);
+        setShowDowngradeModal(false);
       } else {
         window.location.reload();
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Erro ao fazer downgrade');
+      setActionError(err instanceof Error ? err.message : 'Erro ao agendar migração');
     } finally {
       setActionLoading(false);
     }
@@ -330,6 +344,10 @@ function PlanTab() {
               <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                 Trial — {trialDaysLeft}d restantes
               </Badge>
+            ) : isPro && pendingDowngrade ? (
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                Migração agendada
+              </Badge>
             ) : isPro ? (
               <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
                 Ativo
@@ -391,15 +409,28 @@ function PlanTab() {
           {/* Downgrade action — só aparece se estiver no Pro */}
           {isPro && (
             <div className="mt-5 border-t border-border pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                disabled={actionLoading}
-                onClick={() => void handleDowngrade('basic_monthly')}
-              >
-                {actionLoading ? 'Aguarde...' : 'Migrar para Basic'}
-              </Button>
+              {pendingDowngrade ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 px-3 py-2.5 text-center">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Migração agendada para Basic
+                  </p>
+                  {currentPeriodEnd && (
+                    <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                      Pro ativo até {new Date(currentPeriodEnd).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={actionLoading}
+                  onClick={() => setShowDowngradeModal(true)}
+                >
+                  Migrar para Basic
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -438,7 +469,8 @@ function PlanTab() {
           )}
           {isPro && !inTrial && currentPeriodEnd && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Renova em {new Date(currentPeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              {pendingDowngrade ? 'Pro ativo até' : 'Renova em'}{' '}
+              {new Date(currentPeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           )}
 
@@ -547,6 +579,76 @@ function PlanTab() {
       {actionError && (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</p>
       )}
+
+      <Dialog open={showDowngradeModal} onOpenChange={(open) => { if (!actionLoading) setShowDowngradeModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Migrar para o plano Basic</DialogTitle>
+            <DialogDescription>
+              Você continuará com acesso Pro até o fim do período atual.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {currentPeriodEnd && (
+              <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">Acesso Pro até</p>
+                <p className="mt-0.5 text-xl font-bold text-foreground">
+                  {new Date(currentPeriodEnd).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+            <div className="flex items-center justify-around rounded-lg border border-border px-4 py-3">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Atual</p>
+                <p className="text-lg font-bold">R$49,90</p>
+                <p className="text-xs text-muted-foreground">Pro</p>
+              </div>
+              <span className="text-muted-foreground">→</span>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Novo</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">R$19,90</p>
+                <p className="text-xs text-muted-foreground">Basic</p>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Você perderá:</p>
+              <ul className="space-y-1.5">
+                {[
+                  'Contas bancárias ilimitadas (limite: 3)',
+                  'Chat IA 200 msgs/mês (limite: 50)',
+                  'Entrada por áudio',
+                  'Relatórios comparativos avançados',
+                ].map((feature) => (
+                  <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <X className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {actionError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={actionLoading}
+              onClick={() => { setShowDowngradeModal(false); setActionError(null); }}
+            >
+              Manter Pro
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={actionLoading}
+              onClick={() => void handleDowngrade('basic_monthly')}
+            >
+              {actionLoading ? 'Aguarde...' : 'Confirmar migração'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

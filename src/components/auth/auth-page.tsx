@@ -150,7 +150,7 @@ function LoginFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin}/callback` },
+        options: { redirectTo: `${window.location.origin}/callback` },
       });
       if (error) { setError(getAuthError(error.message)); setLoading(false); }
     } catch {
@@ -215,7 +215,7 @@ function SignupFormContent({ onSwitchMode }: { onSwitchMode: () => void }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const callbackBase = `${process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin}/callback`;
+  const callbackBase = `${window.location.origin}/callback`;
 
   function setPendingCheckoutCookie() {
     if (!planParam) return;
