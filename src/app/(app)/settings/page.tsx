@@ -182,19 +182,28 @@ function PlanTab() {
   const { isPro, isBasic, inTrial, trialDaysLeft, maxBankAccounts, aiMonthlyLimit } = usePlan();
   const { profile, user } = useUser();
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [showManageOptions, setShowManageOptions] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
   const [pendingDowngrade, setPendingDowngrade] = useState(false);
+  const [pendingCancellation, setPendingCancellation] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeWithTrial, setUpgradeWithTrial] = useState(false);
+  const [savedCard, setSavedCard] = useState<{ last4: string; brand: string } | null | 'loading'>(null);
+  const [upgradeScheduleDate, setUpgradeScheduleDate] = useState<string | null>(null);
+  const [pendingUpgrade, setPendingUpgrade] = useState(false);
+  const [pendingUpgradePeriodEnd, setPendingUpgradePeriodEnd] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !isPro) return;
     const supabase = createClient();
     supabase
       .from('subscriptions')
-      .select('current_period_end, cancel_at_period_end')
+      .select('current_period_end, cancel_at_period_end, pending_plan')
       .eq('user_id', user.id)
       .in('status', ['active', 'trialing'])
       .order('updated_at', { ascending: false })
@@ -202,9 +211,34 @@ function PlanTab() {
       .maybeSingle()
       .then(({ data }) => {
         if (data?.current_period_end) setCurrentPeriodEnd(data.current_period_end as string);
-        if (data?.cancel_at_period_end) setPendingDowngrade(true);
+        if (data?.cancel_at_period_end) {
+          if ((data as { pending_plan?: string | null }).pending_plan === 'basic') {
+            setPendingDowngrade(true);
+          } else {
+            setPendingCancellation(true);
+          }
+        }
       });
   }, [user, isPro]);
+
+  useEffect(() => {
+    if (!user || !isBasic || inTrial) return;
+    const supabase = createClient();
+    supabase
+      .from('subscriptions')
+      .select('pending_plan, current_period_end')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.pending_plan === 'pro') {
+          setPendingUpgrade(true);
+          if (data.current_period_end) setPendingUpgradePeriodEnd(data.current_period_end as string);
+        }
+      });
+  }, [user, isBasic, inTrial]);
 
   async function handleUpgrade(planKey: 'basic_monthly' | 'pro_monthly', withTrial = false) {
     setActionLoading(true);
@@ -227,6 +261,92 @@ function PlanTab() {
     }
   }
 
+  async function openUpgradeModal(withTrial: boolean) {
+    setUpgradeWithTrial(withTrial);
+    setSavedCard('loading');
+    setUpgradeScheduleDate(null);
+    setShowUpgradeModal(true);
+    try {
+      const res = await fetch('/api/checkout/payment-method');
+      if (res.ok) {
+        const data = await res.json() as {
+          last4: string | null;
+          brand: string;
+          periodEnd: string | null;
+          hasExistingSubscription: boolean;
+        };
+        if (data.last4) {
+          setSavedCard({ last4: data.last4, brand: data.brand });
+          if (!withTrial && data.hasExistingSubscription && data.periodEnd) {
+            setUpgradeScheduleDate(data.periodEnd);
+          }
+          return;
+        }
+      }
+    } catch {}
+    // Sem cartão salvo — fechar modal e ir direto para o Stripe Checkout
+    setShowUpgradeModal(false);
+    void handleUpgrade('pro_monthly', withTrial);
+  }
+
+  async function handleConfirmUpgrade() {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch('/api/checkout/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey: 'pro_monthly', withTrial: upgradeWithTrial }),
+      });
+      const data = await res.json() as { action?: string; checkoutUrl?: string; periodEnd?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao assinar');
+      if (data.action === 'checkout' && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else if (data.action === 'scheduled_upgrade') {
+        setPendingUpgrade(true);
+        if (data.periodEnd) setPendingUpgradePeriodEnd(data.periodEnd);
+        setShowUpgradeModal(false);
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReactivate() {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch('/api/checkout/reactivate', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao reativar');
+      setPendingDowngrade(false);
+      setPendingCancellation(false);
+      setShowReactivateModal(false);
+      setSavedCard(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao reativar assinatura');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleOpenPortal() {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/checkout/portal', { method: 'POST' });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao abrir portal');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleEndTrial() {
     setActionLoading(true);
     setActionError(null);
@@ -243,6 +363,24 @@ function PlanTab() {
       setActionError(err instanceof Error ? err.message : 'Erro ao ativar plano');
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function openReactivateModal() {
+    setSavedCard('loading');
+    setShowReactivateModal(true);
+    try {
+      const res = await fetch('/api/checkout/payment-method');
+      if (res.ok) {
+        const data = await res.json() as { last4: string | null; brand: string };
+        if (data.last4) {
+          setSavedCard({ last4: data.last4, brand: data.brand });
+          return;
+        }
+      }
+      setSavedCard(null);
+    } catch {
+      setSavedCard(null);
     }
   }
 
@@ -298,8 +436,9 @@ function PlanTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao cancelar');
 
+      setPendingCancellation(true);
+      setShowCancelModal(false);
       setCancelConfirm(false);
-      window.location.reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Erro ao cancelar assinatura');
     } finally {
@@ -347,6 +486,10 @@ function PlanTab() {
             ) : isPro && pendingDowngrade ? (
               <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                 Migração agendada
+              </Badge>
+            ) : isPro && pendingCancellation ? (
+              <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
+                Cancelamento agendado
               </Badge>
             ) : isPro ? (
               <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
@@ -420,6 +563,17 @@ function PlanTab() {
                     </p>
                   )}
                 </div>
+              ) : pendingCancellation ? (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-center">
+                  <p className="text-xs font-semibold text-destructive">
+                    Cancelamento agendado
+                  </p>
+                  {currentPeriodEnd && (
+                    <p className="mt-0.5 text-xs text-destructive/70">
+                      Pro ativo até {new Date(currentPeriodEnd).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="outline"
@@ -469,7 +623,7 @@ function PlanTab() {
           )}
           {isPro && !inTrial && currentPeriodEnd && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {pendingDowngrade ? 'Pro ativo até' : 'Renova em'}{' '}
+              {pendingDowngrade || pendingCancellation ? 'Pro ativo até' : 'Renova em'}{' '}
               {new Date(currentPeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           )}
@@ -482,12 +636,26 @@ function PlanTab() {
             {/* Basic → upgrade para Pro */}
             {isBasic && !inTrial && (
               <>
-                <Button className="w-full" disabled={actionLoading} onClick={() => handleUpgrade('pro_monthly', true)}>
-                  {actionLoading ? 'Aguarde...' : 'Testar Pro 7 dias grátis'}
-                </Button>
-                <Button variant="outline" className="w-full" disabled={actionLoading} onClick={() => handleUpgrade('pro_monthly', false)}>
-                  {actionLoading ? 'Aguarde...' : 'Assinar Pro — R$49,90/mês'}
-                </Button>
+                {pendingUpgrade ? (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-800 dark:bg-blue-900/20">
+                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Migração agendada para Pro</p>
+                    {pendingUpgradePeriodEnd && (
+                      <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-400">
+                        Pro começa em{' '}
+                        {new Date(pendingUpgradePeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Button className="w-full" disabled={actionLoading} onClick={() => void openUpgradeModal(true)}>
+                      {actionLoading ? 'Aguarde...' : 'Testar Pro 7 dias grátis'}
+                    </Button>
+                    <Button variant="outline" className="w-full" disabled={actionLoading} onClick={() => void openUpgradeModal(false)}>
+                      {actionLoading ? 'Aguarde...' : 'Assinar Pro — R$49,90/mês'}
+                    </Button>
+                  </>
+                )}
               </>
             )}
 
@@ -542,35 +710,29 @@ function PlanTab() {
               </>
             )}
 
-            {/* Pro ativo → cancelar */}
+            {/* Pro ativo → cancelar ou reativar */}
             {isPro && !inTrial && (
-              <>
-                {!cancelConfirm ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
-                    disabled={actionLoading}
-                    onClick={() => setCancelConfirm(true)}
-                  >
-                    Cancelar assinatura
-                  </Button>
-                ) : (
-                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Seu acesso Pro continua até o fim do período já pago.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button variant="destructive" size="sm" className="flex-1" disabled={actionLoading} onClick={handleCancelSubscription}>
-                        {actionLoading ? 'Cancelando...' : 'Confirmar'}
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1" disabled={actionLoading} onClick={() => setCancelConfirm(false)}>
-                        Manter
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
+              (pendingDowngrade || pendingCancellation) ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={actionLoading}
+                  onClick={() => void openReactivateModal()}
+                >
+                  {actionLoading ? 'Aguarde...' : 'Reativar assinatura'}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-destructive hover:bg-destructive/5 hover:text-destructive"
+                  disabled={actionLoading}
+                  onClick={() => setShowCancelModal(true)}
+                >
+                  Cancelar assinatura
+                </Button>
+              )
             )}
           </div>
         </div>
@@ -645,6 +807,226 @@ function PlanTab() {
               onClick={() => void handleDowngrade('basic_monthly')}
             >
               {actionLoading ? 'Aguarde...' : 'Confirmar migração'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de cancelamento */}
+      <Dialog open={showCancelModal} onOpenChange={(open) => { if (!actionLoading) setShowCancelModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar assinatura</DialogTitle>
+            <DialogDescription>
+              Você continuará com acesso Pro até o fim do período já pago.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {currentPeriodEnd && (
+              <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">Acesso Pro até</p>
+                <p className="mt-0.5 text-xl font-bold text-foreground">
+                  {new Date(currentPeriodEnd).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+            {actionError && (
+              <p className="text-sm text-destructive">{actionError}</p>
+            )}
+            <div>
+              <p className="mb-2 text-sm font-medium">Você perderá:</p>
+              <ul className="space-y-1.5">
+                {[
+                  'Contas bancárias ilimitadas (limite: 3)',
+                  'Histórico financeiro completo',
+                  'Chat com IA (200 perguntas/mês)',
+                  'Análises comparativas avançadas',
+                ].map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <span className="mt-0.5 shrink-0 text-destructive">✕</span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={actionLoading}
+              onClick={() => { setShowCancelModal(false); setActionError(null); }}
+            >
+              Manter Pro
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={actionLoading}
+              onClick={() => void handleCancelSubscription()}
+            >
+              {actionLoading ? 'Aguarde...' : 'Confirmar cancelamento'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de reativação */}
+      <Dialog open={showReactivateModal} onOpenChange={(open) => { if (!actionLoading && savedCard !== 'loading') setShowReactivateModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reativar assinatura Pro</DialogTitle>
+            <DialogDescription>
+              Sua assinatura continuará normalmente e será renovada na data prevista.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {savedCard === 'loading' ? (
+              <div className="flex items-center gap-3 rounded-lg border border-border px-4 py-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-sm text-muted-foreground">Verificando cartão...</span>
+              </div>
+            ) : savedCard ? (
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">•••• {savedCard.last4}</span>
+                  <span className="text-xs capitalize text-muted-foreground">{savedCard.brand}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenPortal()}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Trocar cartão
+                </button>
+              </div>
+            ) : null}
+            {currentPeriodEnd && (
+              <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">Próxima renovação</p>
+                <p className="mt-0.5 text-xl font-bold text-foreground">
+                  {new Date(currentPeriodEnd.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+                <p className="mt-0.5 text-sm font-semibold text-foreground">
+                  R$49,90<span className="text-xs font-normal text-muted-foreground">/mês</span>
+                </p>
+              </div>
+            )}
+            {actionError && (
+              <p className="text-sm text-destructive">{actionError}</p>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={actionLoading || savedCard === 'loading'}
+              onClick={() => { setShowReactivateModal(false); setSavedCard(null); setActionError(null); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={actionLoading || savedCard === 'loading'}
+              onClick={() => void handleReactivate()}
+            >
+              {actionLoading ? 'Aguarde...' : 'Confirmar reativação'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de confirmação de upgrade */}
+      <Dialog open={showUpgradeModal} onOpenChange={(open) => { if (!actionLoading && savedCard !== 'loading') setShowUpgradeModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{upgradeWithTrial ? 'Começar trial de 7 dias' : 'Assinar plano Pro'}</DialogTitle>
+            <DialogDescription>
+              {upgradeWithTrial
+                ? '7 dias grátis, depois R$49,90/mês — cancele quando quiser.'
+                : upgradeScheduleDate
+                  ? `Você continuará no Basic até o fim do período atual. O Pro começa automaticamente na próxima renovação, sem nenhuma cobrança extra agora.`
+                  : 'Você será cobrado no cartão cadastrado.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {savedCard === 'loading' ? (
+              <div className="flex items-center gap-3 rounded-lg border border-border px-4 py-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-sm text-muted-foreground">Verificando cartão...</span>
+              </div>
+            ) : savedCard ? (
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">•••• {savedCard.last4}</span>
+                  <span className="text-xs capitalize text-muted-foreground">{savedCard.brand}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenPortal()}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+                >
+                  Trocar <ExternalLink className="h-3 w-3" />
+                </button>
+              </div>
+            ) : null}
+            <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+              <p className="text-xs text-muted-foreground">
+                {upgradeWithTrial ? 'Após o trial' : upgradeScheduleDate ? 'Cobrança a partir de' : 'Cobrança mensal'}
+              </p>
+              {upgradeScheduleDate && !upgradeWithTrial ? (
+                <p className="mt-0.5 text-base font-semibold text-foreground">
+                  {new Date(upgradeScheduleDate.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              ) : null}
+              <p className={upgradeScheduleDate && !upgradeWithTrial ? 'text-lg font-bold text-foreground' : 'mt-0.5 text-2xl font-bold text-foreground'}>
+                R$49,90<span className="text-sm font-normal text-muted-foreground">/mês</span>
+              </p>
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Você terá acesso a:</p>
+              <ul className="space-y-1.5">
+                {[
+                  'Contas bancárias ilimitadas',
+                  'Chat IA 200 msgs/mês',
+                  'Entrada por áudio',
+                  'Relatórios comparativos avançados',
+                ].map((feature) => (
+                  <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Check className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {actionError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={actionLoading || savedCard === 'loading'}
+              onClick={() => { setShowUpgradeModal(false); setActionError(null); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={actionLoading || savedCard === 'loading'}
+              onClick={() => void handleConfirmUpgrade()}
+            >
+              {actionLoading
+                ? 'Aguarde...'
+                : upgradeWithTrial
+                  ? 'Começar trial'
+                  : upgradeScheduleDate
+                    ? 'Agendar migração para Pro'
+                    : 'Confirmar assinatura'}
             </Button>
           </div>
         </DialogContent>

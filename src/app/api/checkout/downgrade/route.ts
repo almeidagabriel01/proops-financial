@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
       await serviceSupabase
         .from('subscriptions')
-        .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+        .update({ cancel_at_period_end: true, pending_plan: 'basic', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .eq('status', 'active');
 

@@ -102,12 +102,17 @@ export async function handleStripeWebhook(
           }
         : {};
 
+      const subPriceIdForUpdate = item?.price.id;
+      const proIds = [STRIPE_PRICE_IDS.pro_monthly, STRIPE_PRICE_IDS.pro_annual].filter(Boolean);
+      const pendingPlanClear = proIds.includes(subPriceIdForUpdate ?? '') ? { pending_plan: null } : {};
+
       const { data: rows } = await supabase
         .from('subscriptions')
         .update({
           status,
           ...periodUpdate,
           cancel_at_period_end: sub.cancel_at_period_end ?? false,
+          ...pendingPlanClear,
           updated_at: new Date().toISOString(),
         })
         .eq('stripe_subscription_id', sub.id)
