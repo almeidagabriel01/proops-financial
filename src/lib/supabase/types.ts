@@ -1,5 +1,5 @@
 // Database types — placeholder until generated via `supabase gen types typescript`
-// Run: npx supabase gen types --lang=typescript --project-id=wqvwbawhwypcsmzfbvpy > src/lib/supabase/types.ts
+// Run: supabase gen types typescript --project-id $(grep SUPABASE_URL .env.local | cut -d'/' -f3 | cut -d'.' -f1) > src/lib/supabase/types.ts
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
